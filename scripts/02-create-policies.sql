@@ -83,3 +83,7 @@ CREATE POLICY "Anyone can view reviews" ON reviews
 
 CREATE POLICY "Users can create reviews for their orders" ON reviews
     FOR INSERT WITH CHECK (auth.uid() = user_id);
+
+-- Add this missing INSERT policy for profiles
+CREATE POLICY "Users can insert their own profile" ON profiles
+    FOR INSERT WITH CHECK (auth.uid() = id);
