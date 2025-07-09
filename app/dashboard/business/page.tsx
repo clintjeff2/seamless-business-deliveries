@@ -168,7 +168,7 @@ export default async function BusinessDashboardPage() {
                   <CardDescription>Latest customer orders</CardDescription>
                 </div>
                 <Button asChild size="sm" variant="outline">
-                  <Link href="/business/orders">View All</Link>
+                  <Link href="/dashboard/business/orders">View All</Link>
                 </Button>
               </CardHeader>
               <CardContent>
@@ -184,7 +184,7 @@ export default async function BusinessDashboardPage() {
                         <div className="text-right">
                           <Badge variant={order.status === "pending" ? "secondary" : "default"}>{order.status}</Badge>
                           <Button asChild size="sm" variant="outline" className="mt-1 bg-transparent">
-                            <Link href={`/business/orders/${order.id}`}>View</Link>
+                            <Link href={`/dashboard/business/orders/${order.id}`}>View</Link>
                           </Button>
                         </div>
                       </div>
