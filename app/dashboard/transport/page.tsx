@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { Truck, MapPin, Clock, DollarSign, Star } from "lucide-react"
+import { ServiceStatusCard } from "@/components/transport/ServiceStatusCard"
 
 export default async function TransportDashboardPage() {
   const user = await requireRole("transport")
@@ -109,45 +110,8 @@ export default async function TransportDashboardPage() {
           </div>
 
           <div className="grid lg:grid-cols-2 gap-8">
-            {/* Service Status */}
-            <Card>
-              <CardHeader>
-                <CardTitle>Service Status</CardTitle>
-                <CardDescription>Manage your availability</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-4">
-                  <div className="flex items-center justify-between">
-                    <span>Current Status</span>
-                    <Badge variant={transportService.status === "available" ? "default" : "secondary"}>
-                      {transportService.status}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Vehicle Type</span>
-                    <span className="font-semibold">{transportService.vehicle_type}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Base Rate</span>
-                    <span className="font-semibold">${transportService.base_rate}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Per KM Rate</span>
-                    <span className="font-semibold">${transportService.per_km_rate}</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span>Rating</span>
-                    <div className="flex items-center">
-                      <Star className="h-4 w-4 text-yellow-500 mr-1" />
-                      <span className="font-semibold">{transportService.rating.toFixed(1)}</span>
-                    </div>
-                  </div>
-                  <Button className="w-full">
-                    {transportService.status === "available" ? "Go Offline" : "Go Online"}
-                  </Button>
-                </div>
-              </CardContent>
-            </Card>
+            {/* Service Status - Now using Client Component */}
+            <ServiceStatusCard transportService={transportService} />
 
             {/* Recent Deliveries */}
             <Card>
@@ -157,7 +121,7 @@ export default async function TransportDashboardPage() {
                   <CardDescription>Your latest delivery requests</CardDescription>
                 </div>
                 <Button asChild size="sm" variant="outline">
-                  <Link href="/transport/requests">View All</Link>
+                  <Link href="/dashboard/transport/requests">View All</Link>
                 </Button>
               </CardHeader>
               <CardContent>
