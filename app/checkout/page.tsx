@@ -53,6 +53,7 @@ export default function CheckoutPage() {
         .eq("is_verified", true)
         .order("rating", { ascending: false })
 
+      console.log(data, "Jeff")
       if (data) setTransportServices(data)
     }
 
