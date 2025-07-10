@@ -2,9 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { requireRole } from '@/lib/auth';
+import React from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { format } from 'date-fns';
 import {
 	Card,
 	CardContent,
@@ -18,9 +17,49 @@ import { DeliverySearchForm } from '@/components/transport/DeliverySearchForm';
 import { DeliveryStatusCard } from '@/components/transport/DeliveryStatusCard';
 import type { TransportService, Delivery } from '@/lib/types';
 
+// Loading Skeleton Component
+function LoadingSkeleton() {
+	return (
+		<div className="container mx-auto px-4 py-8">
+			<div className="mb-8">
+				<div className="h-8 bg-gray-200 rounded w-48 mb-2 animate-pulse" />
+				<div className="h-4 bg-gray-200 rounded w-64 animate-pulse" />
+			</div>
+
+			<div className="mb-6">
+				<div className="h-10 bg-gray-200 rounded w-full animate-pulse" />
+			</div>
+
+			<div className="space-y-4">
+				{[1, 2, 3].map((i) => (
+					<Card key={i}>
+						<CardHeader>
+							<div className="flex justify-between">
+								<div>
+									<div className="h-5 bg-gray-200 rounded w-32 mb-2 animate-pulse" />
+									<div className="h-4 bg-gray-200 rounded w-24 animate-pulse" />
+								</div>
+								<div className="h-6 bg-gray-200 rounded w-20 animate-pulse" />
+							</div>
+						</CardHeader>
+						<CardContent>
+							<div className="space-y-4">
+								<div className="h-4 bg-gray-200 rounded w-full animate-pulse" />
+								<div className="h-4 bg-gray-200 rounded w-3/4 animate-pulse" />
+							</div>
+						</CardContent>
+					</Card>
+				))}
+			</div>
+		</div>
+	);
+}
+
 export default function DeliveriesPage({
+	params,
 	searchParams,
 }: {
+	params: {};
 	searchParams: { search?: string };
 }) {
 	const [loading, setLoading] = useState(true);
@@ -30,6 +69,9 @@ export default function DeliveriesPage({
 	const [deliveries, setDeliveries] = useState<Delivery[]>([]);
 	const router = useRouter();
 	const supabase = createClient();
+	const resolvedSearchParams = React.use(
+		searchParams as unknown as Promise<{ search?: string }>
+	);
 
 	useEffect(() => {
 		const fetchData = async () => {
@@ -71,27 +113,32 @@ export default function DeliveriesPage({
 					.from('deliveries')
 					.select(
 						`
-                        *,
-                        order:orders(
-                            id,
-                            total_amount,
-                            delivery_address,
-                            delivery_notes,
-                            business:businesses(name)
-                        )
-                    `
+						*,
+						order_id,
+						status,
+						created_at,
+						orders (
+							id,
+							total_amount,
+							delivery_address,
+							delivery_notes,
+							business_id,
+							business:business_id (name)
+						)
+					`
 					)
 					.eq('transport_service_id', service.id)
 					.order('created_at', { ascending: false });
 
-				if (searchParams.search) {
+				if (resolvedSearchParams.search) {
 					query = query.or(
-						`delivery_address.ilike.%${searchParams.search}%,order.delivery_notes.ilike.%${searchParams.search}%`
+						`delivery_address.ilike.%${resolvedSearchParams.search}%,orders.delivery_notes.ilike.%${resolvedSearchParams.search}%`
 					);
 				}
 
 				const { data: deliveriesData, error: deliveriesError } = await query;
 
+				console.log(deliveriesData);
 				if (deliveriesError) throw deliveriesError;
 				setDeliveries(deliveriesData || []);
 			} catch (err: any) {
@@ -102,14 +149,21 @@ export default function DeliveriesPage({
 		};
 
 		fetchData();
-	}, [searchParams.search, router, supabase]);
+	}, [resolvedSearchParams.search, router, supabase]);
 
 	if (loading) {
-		return <div>Loading...</div>;
+		return <LoadingSkeleton />;
 	}
 
 	if (error) {
-		return <div>Error: {error}</div>;
+		return (
+			<div className="container mx-auto px-4 py-8">
+				<div className="max-w-4xl mx-auto text-center">
+					<h2 className="text-2xl font-bold text-red-600 mb-4">Error</h2>
+					<p className="text-gray-600">{error}</p>
+				</div>
+			</div>
+		);
 	}
 
 	return (
@@ -119,64 +173,56 @@ export default function DeliveriesPage({
 				<p className="text-gray-600">Manage your delivery requests</p>
 			</div>
 
-			<DeliverySearchForm initialSearch={searchParams.search || ''} />
+			<DeliverySearchForm initialSearch={resolvedSearchParams.search || ''} />
 
-			<div className="grid gap-6 mt-8">
-				{transportService && (
-					<DeliveryStatusCard transportService={transportService} />
-				)}
-
-				{deliveries.map((delivery) => (
-					<Card key={delivery.id}>
-						<CardHeader>
-							<div className="flex items-center justify-between">
-								<div>
-									<CardTitle>Order #{delivery.order?.id.slice(0, 8)}</CardTitle>
-									<CardDescription>
-										{format(
-											new Date(delivery.created_at),
-											"MMM dd, yyyy 'at' hh:mm a"
-										)}
-									</CardDescription>
+			<div className="space-y-4">
+				{deliveries.length > 0 ? (
+					deliveries.map((delivery) => (
+						<Card key={delivery.id}>
+							<CardHeader>
+								<div className="flex items-center justify-between">
+									<div>
+										<CardTitle>
+											Order #{delivery.orders?.id?.slice(0, 8)}
+										</CardTitle>
+										<CardDescription>
+											From {delivery.orders?.business?.name}
+										</CardDescription>
+									</div>
+									<Badge
+										variant={
+											delivery.status === 'delivered' ? 'default' : 'secondary'
+										}
+									>
+										{delivery.status.replace('_', ' ').toUpperCase()}
+									</Badge>
 								</div>
-								<Badge
-									variant={
-										delivery.status === 'delivered'
-											? 'default'
-											: delivery.status === 'in_transit'
-											? 'outline'
-											: 'secondary'
-									}
-								>
-									{delivery.status.replace('_', ' ').toUpperCase()}
-								</Badge>
-							</div>
-						</CardHeader>
-						<CardContent>
-							<div className="space-y-4">
-								<div>
-									<p className="text-sm font-medium">From</p>
-									<p className="text-sm text-gray-600">
-										{delivery.order?.business?.name}
-									</p>
-								</div>
-								<div>
-									<p className="text-sm font-medium">Delivery Address</p>
-									<p className="text-sm text-gray-600">
-										{delivery.order?.delivery_address}
-									</p>
-									{delivery.order?.delivery_notes && (
-										<p className="text-sm text-gray-600 mt-1">
-											Note: {delivery.order.delivery_notes}
+							</CardHeader>
+							<CardContent>
+								<div className="space-y-4">
+									<div>
+										<p className="text-sm font-medium">From</p>
+										<p className="text-sm text-gray-600">
+											{delivery.orders?.business?.name}
 										</p>
-									)}
+									</div>
+									<div>
+										<p className="text-sm font-medium">Delivery Address</p>
+										<p className="text-sm text-gray-600">
+											{delivery.orders?.delivery_address}
+										</p>
+										{delivery.orders?.delivery_notes && (
+											<p className="text-sm text-gray-600 mt-1">
+												Note: {delivery.orders.delivery_notes}
+											</p>
+										)}
+									</div>
+									<DeliveryStatusCard delivery={delivery} />
 								</div>
-							</div>
-						</CardContent>
-					</Card>
-				))}
-
-				{deliveries.length === 0 && (
+							</CardContent>
+						</Card>
+					))
+				) : (
 					<Card>
 						<CardContent className="p-8 text-center">
 							<Truck className="mx-auto h-12 w-12 text-gray-400" />
