@@ -1,20 +1,42 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Map } from '@/components/ui/map';
 import { MapPin, Phone, Package, Truck, CheckCircle } from 'lucide-react';
-import type { DeliveryStatus } from '@/lib/types';
 import { format } from 'date-fns';
+import type { DeliveryStatus } from '@/lib/types';
+
+interface DeliveryWithDetails {
+	id: string;
+	status: DeliveryStatus;
+	current_latitude?: number;
+	current_longitude?: number;
+	delivery_latitude?: number;
+	delivery_longitude?: number;
+	delivery_address: string;
+	estimated_delivery_time?: string;
+	distance_km?: number;
+	orders?: {
+		id: string;
+		business?: {
+			name: string;
+		};
+	};
+	transport_service?: {
+		service_name: string;
+		vehicle_type: string;
+		phone?: string;
+		driver?: {
+			full_name: string;
+			phone?: string;
+		};
+	};
+}
 
 const deliverySteps = [
 	{
@@ -54,78 +76,84 @@ const deliverySteps = [
 	},
 ];
 
-export default function DeliveryTrackingPage({
-	params,
-}: {
-	params: { deliveryId: string };
-}) {
-	const [delivery, setDelivery] = useState<any>(null);
+export default function DeliveryTrackingPage() {
+	const params = useParams();
+	const deliveryId = params.deliveryId as string;
+	const [delivery, setDelivery] = useState<DeliveryWithDetails | null>(null);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const supabase = createClient();
 
 	useEffect(() => {
+		let mounted = true;
+
 		const fetchDelivery = async () => {
 			try {
 				const { data, error } = await supabase
 					.from('deliveries')
 					.select(
 						`
-            *,
-            orders(
-              *,
-              business:businesses(name, address, phone),
-              order_items(
-                *,
-                item:items(name, price)
-              )
-            ),
-            transport_service:transport_services(
-              service_name,
-              vehicle_type,
-              phone,
-              driver:profiles(full_name, phone)
-            )
-          `
+						*,
+						orders(
+							id,
+							business:businesses(name)
+						),
+						transport_service:transport_services(
+							service_name,
+							vehicle_type,
+							phone,
+							driver:profiles(full_name, phone)
+						)
+					`
 					)
-					.eq('id', params.deliveryId)
+					.eq('id', deliveryId)
 					.single();
 
 				if (error) throw error;
-				setDelivery(data);
+				if (mounted) {
+					setDelivery(data);
+					setError(null);
+				}
 			} catch (error: any) {
-				setError(error.message);
+				if (mounted) {
+					setError(error.message);
+				}
 			} finally {
-				setLoading(false);
+				if (mounted) {
+					setLoading(false);
+				}
 			}
 		};
 
 		fetchDelivery();
 
 		// Set up real-time subscription for delivery updates
-		const subscription = supabase
-			.channel(`delivery-${params.deliveryId}`)
+		const deliveryChannel = supabase
+			.channel(`delivery-${deliveryId}`)
 			.on(
 				'postgres_changes',
 				{
 					event: 'UPDATE',
 					schema: 'public',
 					table: 'deliveries',
-					filter: `id=eq.${params.deliveryId}`,
+					filter: `id=eq.${deliveryId}`,
 				},
-				(payload: { new: any }) => {
-					setDelivery((prev: any) => {
-						if (!prev) return null;
-						return { ...prev, ...payload.new };
-					});
+				(payload: { new: DeliveryWithDetails }) => {
+					if (mounted) {
+						setDelivery((prev) => {
+							if (!prev) return null;
+							return { ...prev, ...payload.new };
+						});
+					}
 				}
 			)
 			.subscribe();
 
 		return () => {
-			subscription.unsubscribe();
+			mounted = false;
+			deliveryChannel.unsubscribe();
 		};
-	}, [params.deliveryId, supabase]);
+	}, [deliveryId, supabase]);
 
 	// Show loading spinner
 	if (loading) {
@@ -171,28 +199,37 @@ export default function DeliveryTrackingPage({
 
 	const currentStep = getStatusStep(delivery.status);
 
-	// Get map center coordinates
+	// Get map center coordinates with proper fallback
 	const mapCenter: [number, number] =
-		delivery.current_latitude && delivery.current_longitude
-			? [delivery.current_latitude, delivery.current_longitude]
-			: [40.7128, -74.006]; // Default to NYC
+		delivery?.current_latitude && delivery?.current_longitude
+			? [delivery.current_longitude, delivery.current_latitude]
+			: delivery?.delivery_latitude && delivery?.delivery_longitude
+			? [delivery.delivery_longitude, delivery.delivery_latitude]
+			: [-74.006, 40.7128]; // Default to NYC if no coordinates available
 
-	// Define map markers
+	// Define map markers with proper types
 	const mapMarkers = [
-		{
-			position: mapCenter,
-			title: 'Current Location',
-			color: 'blue',
-		},
-		...(delivery.delivery_latitude && delivery.delivery_longitude
+		...(delivery?.current_latitude && delivery?.current_longitude
 			? [
 					{
 						position: [
-							delivery.delivery_latitude,
+							delivery.current_longitude,
+							delivery.current_latitude,
+						] as [number, number],
+						title: 'Current Location',
+						color: '#3B82F6', // Blue
+					},
+			  ]
+			: []),
+		...(delivery?.delivery_latitude && delivery?.delivery_longitude
+			? [
+					{
+						position: [
 							delivery.delivery_longitude,
+							delivery.delivery_latitude,
 						] as [number, number],
 						title: 'Delivery Address',
-						color: 'red',
+						color: '#EF4444', // Red
 					},
 			  ]
 			: []),
