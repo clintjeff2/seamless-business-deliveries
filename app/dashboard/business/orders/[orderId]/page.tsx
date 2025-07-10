@@ -336,16 +336,17 @@ export default function OrderDetailPage({
 									</p>
 								</div>
 
-								{order.delivery && (
+								{order.delivery?.[0] && (
 									<div className="mt-4">
 										<p className="text-sm font-medium mb-1">Delivery Status</p>
 										<Badge variant="outline">
-											{formatDeliveryStatus(order.delivery.status)}
+											{formatDeliveryStatus(order.delivery[0].status)}
 										</Badge>
-										{order.delivery.transport_service && (
+										{order.delivery[0].transport_service && (
 											<p className="text-sm text-gray-600 mt-2">
-												Driver: {order.delivery.transport_service.service_name}{' '}
-												({order.delivery.transport_service.phone})
+												Driver:{' '}
+												{order.delivery[0].transport_service.service_name} (
+												{order.delivery[0].transport_service.phone})
 											</p>
 										)}
 									</div>
