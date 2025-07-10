@@ -54,7 +54,7 @@ const deliverySteps = [
 	},
 ];
 
-export default function TrackDeliveryPage({
+export default function DeliveryTrackingPage({
 	params,
 }: {
 	params: { deliveryId: string };
@@ -199,212 +199,180 @@ export default function TrackDeliveryPage({
 	];
 
 	return (
-		<div className="container mx-auto px-4 py-8">
-			<div className="max-w-4xl mx-auto">
-				<div className="mb-8">
-					<h1 className="text-3xl font-bold mb-2">Track Your Delivery</h1>
-					<p className="text-gray-600">
-						Order #{delivery.orders?.id?.slice(0, 8)} from{' '}
-						{delivery.orders?.business?.name}
-					</p>
-				</div>
-
-				<div className="grid lg:grid-cols-2 gap-8">
-					{/* Map Section */}
-					<div>
-						<Card>
-							<CardHeader>
-								<CardTitle className="flex items-center">
-									<MapPin className="h-5 w-5 mr-2" />
-									Live Location
-								</CardTitle>
-								<CardDescription>Real-time delivery tracking</CardDescription>
-							</CardHeader>
-							<CardContent>
-								<div className="h-64 rounded-lg overflow-hidden">
-									<Map
-										center={mapCenter}
-										markers={mapMarkers}
-										className="w-full h-full"
-									/>
-								</div>
-								<div className="mt-4 space-y-2">
-									<div className="flex items-center text-sm">
-										<div className="w-3 h-3 bg-blue-500 rounded-full mr-2"></div>
-										<span>Current Location</span>
-									</div>
-									<div className="flex items-center text-sm">
-										<div className="w-3 h-3 bg-red-500 rounded-full mr-2"></div>
-										<span>Delivery Destination</span>
-									</div>
-								</div>
-							</CardContent>
-						</Card>
+		<div className="min-h-screen flex flex-col">
+			{/* Large Map Section */}
+			<div className="h-[60vh] relative">
+				<Map
+					center={mapCenter}
+					markers={mapMarkers}
+					className="w-full h-full"
+					showLiveLocation={true}
+				/>
+				<div className="absolute bottom-4 right-4 bg-white/90 backdrop-blur-sm p-4 rounded-lg shadow-lg">
+					<div className="space-y-2">
+						<div className="flex items-center text-sm">
+							<div className="w-3 h-3 bg-blue-500 rounded-full mr-2"></div>
+							<span>Current Location</span>
+						</div>
+						<div className="flex items-center text-sm">
+							<div className="w-3 h-3 bg-red-500 rounded-full mr-2"></div>
+							<span>Delivery Destination</span>
+						</div>
 					</div>
+				</div>
+			</div>
 
-					{/* Delivery Status Section */}
-					<div className="space-y-6">
-						<Card>
-							<CardHeader>
-								<CardTitle>Delivery Status</CardTitle>
-								<CardDescription>
-									<Badge
-										variant={
-											delivery.status === 'delivered' ? 'default' : 'secondary'
-										}
-									>
-										{delivery.status.replace('_', ' ').toUpperCase()}
-									</Badge>
-								</CardDescription>
-							</CardHeader>
-							<CardContent>
-								<div className="space-y-4">
-									{deliverySteps.map((step) => (
-										<div
-											key={step.step}
-											className="flex items-center space-x-3"
-										>
-											<div
-												className={`w-8 h-8 rounded-full flex items-center justify-center ${
-													step.step <= currentStep
-														? 'bg-green-100 text-green-600'
-														: 'bg-gray-100 text-gray-400'
-												}`}
+			{/* Delivery Info Section */}
+			<div className="flex-1 bg-gray-50">
+				<div className="container mx-auto px-4 py-6">
+					<div className="max-w-5xl mx-auto">
+						{/* Header with basic info */}
+						<div className="mb-6">
+							<h1 className="text-2xl font-bold mb-2 flex items-center">
+								<MapPin className="h-5 w-5 mr-2" />
+								Track Your Delivery
+							</h1>
+							<p className="text-gray-600">
+								Order #{delivery.orders?.id?.slice(0, 8)} from{' '}
+								{delivery.orders?.business?.name}
+							</p>
+						</div>
+
+						<div className="grid md:grid-cols-3 gap-6">
+							{/* Status Timeline */}
+							<div className="md:col-span-2">
+								<Card>
+									<CardHeader className="pb-4">
+										<div className="flex items-center justify-between">
+											<CardTitle>Delivery Status</CardTitle>
+											<Badge
+												variant={
+													delivery.status === 'delivered'
+														? 'default'
+														: 'secondary'
+												}
+												className="ml-2"
 											>
-												<step.icon className="h-4 w-4" />
-											</div>
-											<div className="flex-1">
-												<p
-													className={`font-semibold ${
-														step.step <= currentStep
-															? 'text-green-600'
-															: 'text-gray-400'
-													}`}
+												{delivery.status.replace('_', ' ').toUpperCase()}
+											</Badge>
+										</div>
+									</CardHeader>
+									<CardContent>
+										<div className="space-y-4">
+											{deliverySteps.map((step) => (
+												<div
+													key={step.step}
+													className="flex items-center space-x-3"
 												>
-													{step.label}
-												</p>
-												<p className="text-sm text-gray-600">{step.desc}</p>
+													<div
+														className={`w-8 h-8 rounded-full flex items-center justify-center ${
+															step.step <= currentStep
+																? 'bg-green-100 text-green-600'
+																: 'bg-gray-100 text-gray-400'
+														}`}
+													>
+														<step.icon className="h-4 w-4" />
+													</div>
+													<div className="flex-1">
+														<p
+															className={`font-semibold ${
+																step.step <= currentStep
+																	? 'text-green-600'
+																	: 'text-gray-400'
+															}`}
+														>
+															{step.label}
+														</p>
+														<p className="text-sm text-gray-600">{step.desc}</p>
+													</div>
+													{step.step <= currentStep && (
+														<CheckCircle className="h-5 w-5 text-green-500" />
+													)}
+												</div>
+											))}
+										</div>
+									</CardContent>
+								</Card>
+							</div>
+
+							{/* Driver Info and Details */}
+							<div className="space-y-6">
+								{delivery.transport_service && (
+									<Card>
+										<CardHeader>
+											<CardTitle className="text-lg">Driver Info</CardTitle>
+										</CardHeader>
+										<CardContent>
+											<div className="space-y-3">
+												<div>
+													<p className="font-semibold">
+														{delivery.transport_service.service_name}
+													</p>
+													<p className="text-sm text-gray-600">
+														{delivery.transport_service.vehicle_type}
+													</p>
+												</div>
+												{delivery.transport_service.driver && (
+													<div>
+														<p className="font-semibold">
+															{delivery.transport_service.driver.full_name}
+														</p>
+														<p className="text-sm text-gray-600">Driver</p>
+													</div>
+												)}
+												{delivery.transport_service.phone && (
+													<Button
+														variant="outline"
+														size="sm"
+														className="w-full"
+													>
+														<Phone className="h-4 w-4 mr-2" />
+														{delivery.transport_service.phone}
+													</Button>
+												)}
 											</div>
-											{step.step <= currentStep && (
-												<CheckCircle className="h-5 w-5 text-green-500" />
+										</CardContent>
+									</Card>
+								)}
+
+								<Card>
+									<CardHeader>
+										<CardTitle className="text-lg">Delivery Details</CardTitle>
+									</CardHeader>
+									<CardContent>
+										<div className="space-y-3">
+											<div>
+												<p className="font-semibold">Delivery Address</p>
+												<p className="text-sm text-gray-600">
+													{delivery.delivery_address}
+												</p>
+											</div>
+											{delivery.estimated_delivery_time && (
+												<div>
+													<p className="font-semibold">Estimated Delivery</p>
+													<p className="text-sm text-gray-600">
+														{format(
+															new Date(delivery.estimated_delivery_time),
+															"MMM d, yyyy 'at' h:mm a"
+														)}
+													</p>
+												</div>
+											)}
+											{delivery.distance_km && (
+												<div>
+													<p className="font-semibold">Distance</p>
+													<p className="text-sm text-gray-600">
+														{delivery.distance_km} km
+													</p>
+												</div>
 											)}
 										</div>
-									))}
-								</div>
-							</CardContent>
-						</Card>
-
-						{/* Driver Info */}
-						{delivery.transport_service && (
-							<Card>
-								<CardHeader>
-									<CardTitle>Driver Information</CardTitle>
-								</CardHeader>
-								<CardContent>
-									<div className="space-y-3">
-										<div>
-											<p className="font-semibold">
-												{delivery.transport_service.service_name}
-											</p>
-											<p className="text-sm text-gray-600">
-												{delivery.transport_service.vehicle_type}
-											</p>
-										</div>
-										{delivery.transport_service.driver && (
-											<div>
-												<p className="font-semibold">
-													{delivery.transport_service.driver.full_name}
-												</p>
-												<p className="text-sm text-gray-600">Driver</p>
-											</div>
-										)}
-										{delivery.transport_service.phone && (
-											<Button
-												variant="outline"
-												size="sm"
-												className="w-full bg-transparent"
-											>
-												<Phone className="h-4 w-4 mr-2" />
-												Call Driver: {delivery.transport_service.phone}
-											</Button>
-										)}
-									</div>
-								</CardContent>
-							</Card>
-						)}
-
-						{/* Delivery Details */}
-						<Card>
-							<CardHeader>
-								<CardTitle>Delivery Details</CardTitle>
-							</CardHeader>
-							<CardContent>
-								<div className="space-y-3">
-									<div>
-										<p className="font-semibold">Delivery Address</p>
-										<p className="text-sm text-gray-600">
-											{delivery.delivery_address}
-										</p>
-									</div>
-									{delivery.estimated_delivery_time && (
-										<div>
-											<p className="font-semibold">Estimated Delivery</p>
-											<p className="text-sm text-gray-600">
-												{format(
-													new Date(delivery.estimated_delivery_time),
-													"MMM d, yyyy 'at' h:mm a"
-												)}
-											</p>
-										</div>
-									)}
-									{delivery.distance_km && (
-										<div>
-											<p className="font-semibold">Distance</p>
-											<p className="text-sm text-gray-600">
-												{delivery.distance_km} km
-											</p>
-										</div>
-									)}
-									{delivery.delivery_fee && (
-										<div>
-											<p className="font-semibold">Delivery Fee</p>
-											<p className="text-sm text-gray-600">
-												${delivery.delivery_fee}
-											</p>
-										</div>
-									)}
-								</div>
-							</CardContent>
-						</Card>
+									</CardContent>
+								</Card>
+							</div>
+						</div>
 					</div>
 				</div>
-
-				{/* Order Items */}
-				<Card className="mt-8">
-					<CardHeader>
-						<CardTitle>Order Items</CardTitle>
-					</CardHeader>
-					<CardContent>
-						<div className="space-y-3">
-							{delivery.orders?.order_items?.map((orderItem: any) => (
-								<div
-									key={orderItem.id}
-									className="flex items-center justify-between"
-								>
-									<div>
-										<p className="font-semibold">{orderItem.item?.name}</p>
-										<p className="text-sm text-gray-600">
-											Quantity: {orderItem.quantity}
-										</p>
-									</div>
-									<p className="font-semibold">
-										${(orderItem.price * orderItem.quantity).toFixed(2)}
-									</p>
-								</div>
-							))}
-						</div>
-					</CardContent>
-				</Card>
 			</div>
 		</div>
 	);
