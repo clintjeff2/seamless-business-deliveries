@@ -79,7 +79,7 @@ export default async function TransportDashboardPage() {
 						<Button asChild>
 							<Link href="/register/transport">Complete Setup</Link>
 						</Button>
-					</<CardContent>
+					</CardContent>
 				</Card>
 			) : (
 				<div className="space-y-8">
