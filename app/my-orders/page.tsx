@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { MapPin, Eye, Star } from 'lucide-react';
 import type { Order, DeliveryStatus, OrderStatus } from '@/lib/types';
+import { format } from 'date-fns';
 
 export default function MyOrdersPage() {
 	const [orders, setOrders] = useState<Order[]>([]);
@@ -116,8 +117,8 @@ export default function MyOrdersPage() {
 			return { label: 'Cancelled', variant: 'destructive' };
 		}
 
-		if (order.delivery) {
-			switch (order.delivery.status) {
+		if (order.delivery?.[0]) {
+			switch (order.delivery[0].status) {
 				case 'pending':
 					return { label: 'Confirmed, Awaiting Driver', variant: 'secondary' };
 				case 'accepted':
@@ -130,7 +131,7 @@ export default function MyOrdersPage() {
 					return { label: 'Delivered', variant: 'default' };
 				default:
 					return {
-						label: order.delivery.status.toUpperCase(),
+						label: order.delivery[0].status.toUpperCase(),
 						variant: 'secondary',
 					};
 			}
@@ -187,12 +188,12 @@ export default function MyOrdersPage() {
 								<CardHeader>
 									<div className="flex items-center justify-between">
 										<div className="flex items-center space-x-4">
-											<div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center">
+											<div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
 												{order.business?.logo_url ? (
 													<img
 														src={order.business.logo_url}
 														alt={order.business.name}
-														className="w-8 h-8 object-contain"
+														className="object-cover w-full h-full"
 													/>
 												) : (
 													<div className="w-8 h-8 bg-gray-200 rounded" />
@@ -221,18 +222,21 @@ export default function MyOrdersPage() {
 											</span>
 										</div>
 
-										{order.delivery && (
+										{order.delivery?.[0] && (
 											<div className="text-sm text-gray-600">
 												<p className="mb-1">
 													<MapPin className="h-4 w-4 inline mr-1" />
 													{order.delivery_address}
 												</p>
-												{order.delivery.estimated_delivery_time && (
+												{order.delivery[0].estimated_delivery_time && (
 													<p>
 														Estimated Delivery:{' '}
-														{new Date(
-															order.delivery.estimated_delivery_time
-														).toLocaleString()}
+														{format(
+															new Date(
+																order.delivery[0].estimated_delivery_time
+															),
+															"MMM d, yyyy 'at' h:mm a"
+														)}
 													</p>
 												)}
 											</div>
@@ -240,9 +244,11 @@ export default function MyOrdersPage() {
 
 										<div className="flex items-center justify-between mt-6">
 											<div className="flex space-x-2">
-												{order.delivery?.status === 'in_transit' && (
+												{order.delivery?.[0]?.status === 'in_transit' && (
 													<Button asChild size="sm">
-														<Link href={`/delivery/${order.delivery.id}/track`}>
+														<Link
+															href={`/delivery/${order.delivery[0].id}/track`}
+														>
 															<MapPin className="h-4 w-4 mr-2" />
 															Track Delivery
 														</Link>
@@ -257,7 +263,7 @@ export default function MyOrdersPage() {
 												</Button>
 											</div>
 
-											{order.delivery?.status === 'delivered' && (
+											{order.delivery?.[0]?.status === 'delivered' && (
 												<Button variant="outline" size="sm">
 													<Star className="h-4 w-4 mr-2" />
 													Leave Review
