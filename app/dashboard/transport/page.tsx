@@ -13,7 +13,6 @@ import Link from 'next/link';
 import { Truck, MapPin, Clock, DollarSign, Star } from 'lucide-react';
 import { ServiceStatusCard } from '@/components/transport/ServiceStatusCard';
 import { DeliveryStatusCard } from '@/components/transport/DeliveryStatusCard';
-import type { Delivery, TransportService } from '@/lib/types';
 
 export default async function TransportDashboardPage() {
 	const user = await requireRole('transport');
@@ -46,15 +45,15 @@ export default async function TransportDashboardPage() {
 	const stats = {
 		totalDeliveries: deliveries?.length || 0,
 		activeDeliveries:
-			deliveries?.filter((d: Delivery) =>
+			deliveries?.filter((d) =>
 				['accepted', 'picked_up', 'in_transit'].includes(d.status)
 			).length || 0,
 		completedDeliveries:
-			deliveries?.filter((d: Delivery) => d.status === 'delivered').length || 0,
+			deliveries?.filter((d) => d.status === 'delivered').length || 0,
 		totalEarnings:
 			deliveries
-				?.filter((d: Delivery) => d.status === 'delivered')
-				.reduce((sum: number, d: Delivery) => sum + (d.delivery_fee || 0), 0) || 0,
+				?.filter((d) => d.status === 'delivered')
+				.reduce((sum, d) => sum + (d.delivery_fee || 0), 0) || 0,
 	};
 
 	console.log(deliveries)
@@ -80,7 +79,7 @@ export default async function TransportDashboardPage() {
 						<Button asChild>
 							<Link href="/register/transport">Complete Setup</Link>
 						</Button>
-					</CardContent>
+					</<CardContent>
 				</Card>
 			) : (
 				<div className="space-y-8">
