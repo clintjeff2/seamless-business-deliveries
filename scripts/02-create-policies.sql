@@ -87,3 +87,14 @@ CREATE POLICY "Users can create reviews for their orders" ON reviews
 -- Add this missing INSERT policy for profiles
 CREATE POLICY "Users can insert their own profile" ON profiles
     FOR INSERT WITH CHECK (auth.uid() = id);
+
+CREATE POLICY "Business owners can update orders for their businesses" ON orders
+    FOR UPDATE USING (
+        auth.uid() IN (
+            SELECT owner_id FROM businesses WHERE id = orders.business_id
+        )
+    ) WITH CHECK (
+        auth.uid() IN (
+            SELECT owner_id FROM businesses WHERE id = orders.business_id
+        )
+    );

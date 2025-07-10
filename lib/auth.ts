@@ -72,7 +72,7 @@ export async function requireAuth() {
 
 export async function requireRole(role: UserRole) {
 	const user = await requireAuth();
-	console.log(user);
+	// console.log(user);
 	if (user.profile?.role !== role) {
 		redirect('/unauthorized');
 	}
