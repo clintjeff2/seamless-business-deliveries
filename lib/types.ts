@@ -109,7 +109,7 @@ export interface Order {
 	updated_at: string;
 	business?: Business;
 	order_items?: OrderItem[];
-	delivery?: Delivery;
+	delivery?: Delivery[];
 }
 
 export interface OrderItem {
@@ -143,7 +143,7 @@ export interface Delivery {
 	created_at: string;
 	updated_at: string;
 	transport_service?: TransportService;
-	order?: Order;
+	orders?: Order;
 }
 
 export interface Review {
