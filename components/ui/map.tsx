@@ -1,58 +1,144 @@
-"use client"
+'use client';
 
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from 'react';
+import mapboxgl from 'mapbox-gl';
 
+// Initialize Mapbox with access token
+mapboxgl.accessToken = process.env.NEXT_PUBLIC_MAPBOX_TOKEN!;
+console.log(process.env.NEXT_PUBLIC_MAPBOX_TOKEN);
 interface MapProps {
-  center: [number, number]
-  zoom?: number
-  markers?: Array<{
-    position: [number, number]
-    title?: string
-    color?: string
-  }>
-  className?: string
+	center: [number, number];
+	zoom?: number;
+	markers?: Array<{
+		position: [number, number];
+		title?: string;
+		color?: string;
+	}>;
+	className?: string;
+	showLiveLocation?: boolean;
 }
 
-export function Map({ center, zoom = 13, markers = [], className = "" }: MapProps) {
-  const mapRef = useRef<HTMLDivElement>(null)
-  const mapInstanceRef = useRef<any>(null)
+export function Map({
+	center,
+	zoom = 13,
+	markers = [],
+	className = '',
+	showLiveLocation = false,
+}: MapProps) {
+	const mapRef = useRef<HTMLDivElement>(null);
+	const mapInstanceRef = useRef<mapboxgl.Map | null>(null);
+	const markersRef = useRef<mapboxgl.Marker[]>([]);
+	const locationMarkerRef = useRef<mapboxgl.Marker | null>(null);
+	const watchIdRef = useRef<number | null>(null);
+	const [userLocation, setUserLocation] = useState<[number, number] | null>(
+		null
+	);
 
-  useEffect(() => {
-    if (!mapRef.current) return
+	// Initialize map
+	useEffect(() => {
+		if (!mapRef.current || mapInstanceRef.current) return;
 
-    // Initialize map (using a simple implementation for demo)
-    // In production, you would use Mapbox GL JS or Google Maps
-    const initMap = () => {
-      if (mapInstanceRef.current) return
+		const map = new mapboxgl.Map({
+			container: mapRef.current,
+			style: 'mapbox://styles/mapbox/streets-v12',
+			center: center,
+			zoom: zoom,
+		});
 
-      // Simple map placeholder - replace with actual Mapbox/Google Maps implementation
-      const mapElement = mapRef.current!
-      mapElement.innerHTML = `
-        <div class="w-full h-full bg-gray-200 rounded-lg flex items-center justify-center relative">
-          <div class="text-center">
-            <div class="text-2xl mb-2">🗺️</div>
-            <p class="text-sm text-gray-600">Map View</p>
-            <p class="text-xs text-gray-500">Lat: ${center[0]}, Lng: ${center[1]}</p>
+		// Add navigation controls
+		map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+
+		mapInstanceRef.current = map;
+
+		return () => {
+			map.remove();
+			mapInstanceRef.current = null;
+		};
+	}, [center, zoom]);
+
+	// Handle markers
+	useEffect(() => {
+		const map = mapInstanceRef.current;
+		if (!map) return;
+
+		// Clear existing markers
+		markersRef.current.forEach((marker) => marker.remove());
+		markersRef.current = [];
+
+		// Add new markers
+		markers.forEach(({ position, title, color = '#FF0000' }) => {
+			const element = document.createElement('div');
+			element.className = 'marker';
+			element.style.width = '24px';
+			element.style.height = '24px';
+			element.style.borderRadius = '50%';
+			element.style.backgroundColor = color;
+			element.style.border = '2px solid white';
+			element.style.boxShadow = '0 0 4px rgba(0,0,0,0.3)';
+
+			const marker = new mapboxgl.Marker({ element }).setLngLat(position);
+
+			if (map) {
+				marker.addTo(map);
+			}
+
+			if (title) {
+				marker.setPopup(new mapboxgl.Popup().setHTML(title));
+			}
+
+			markersRef.current.push(marker);
+		});
+	}, [markers]);
+
+	// Handle live location tracking
+	useEffect(() => {
+		const map = mapInstanceRef.current;
+		if (!map || !showLiveLocation) return;
+
+		const handlePositionUpdate = (position: GeolocationPosition) => {
+			const { latitude, longitude } = position.coords;
+			const newLocation: [number, number] = [longitude, latitude];
+			setUserLocation(newLocation);
+
+			if (!locationMarkerRef.current) {
+				const element = document.createElement('div');
+				element.className = 'location-marker';
+				element.innerHTML = `
+          <div class="w-6 h-6 bg-blue-500 rounded-full border-2 border-white shadow-lg relative">
+            <div class="absolute w-full h-full rounded-full bg-blue-500 animate-ping opacity-75"></div>
           </div>
-          ${markers
-            .map(
-              (marker, index) => `
-            <div class="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2" 
-                 style="margin-left: ${index * 20}px; margin-top: ${index * 20}px;">
-              <div class="w-6 h-6 bg-red-500 rounded-full flex items-center justify-center text-white text-xs">
-                📍
-              </div>
-              ${marker.title ? `<div class="text-xs mt-1 bg-white px-1 rounded shadow">${marker.title}</div>` : ""}
-            </div>
-          `,
-            )
-            .join("")}
-        </div>
-      `
-    }
+        `;
+				locationMarkerRef.current = new mapboxgl.Marker({ element })
+					.setLngLat(newLocation)
+					.addTo(map);
+			} else {
+				locationMarkerRef.current.setLngLat(newLocation);
+			}
 
-    initMap()
-  }, [center, markers])
+			map.flyTo({ center: newLocation, zoom: 15 });
+		};
 
-  return <div ref={mapRef} className={`w-full h-full ${className}`} />
+		if (navigator.geolocation) {
+			watchIdRef.current = navigator.geolocation.watchPosition(
+				handlePositionUpdate,
+				(error) => console.error('Error getting location:', error),
+				{ enableHighAccuracy: true }
+			);
+		}
+
+		return () => {
+			if (watchIdRef.current !== null) {
+				navigator.geolocation.clearWatch(watchIdRef.current);
+			}
+			locationMarkerRef.current?.remove();
+			locationMarkerRef.current = null;
+		};
+	}, [showLiveLocation]);
+
+	return (
+		<div
+			ref={mapRef}
+			className={`w-full h-full rounded-lg overflow-hidden ${className}`}
+		/>
+	);
 }
