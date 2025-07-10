@@ -14,6 +14,7 @@ import { Button } from '@/components/ui/button';
 import { Map } from '@/components/ui/map';
 import { MapPin, Phone, Package, Truck, CheckCircle } from 'lucide-react';
 import type { DeliveryStatus } from '@/lib/types';
+import { format } from 'date-fns';
 
 const deliverySteps = [
 	{
@@ -71,7 +72,7 @@ export default function TrackDeliveryPage({
 					.select(
 						`
             *,
-            order:orders(
+            orders(
               *,
               business:businesses(name, address, phone),
               order_items(
@@ -112,8 +113,11 @@ export default function TrackDeliveryPage({
 					table: 'deliveries',
 					filter: `id=eq.${params.deliveryId}`,
 				},
-				(payload) => {
-					setDelivery((prev: any) => ({ ...prev, ...payload.new }));
+				(payload: { new: any }) => {
+					setDelivery((prev: any) => {
+						if (!prev) return null;
+						return { ...prev, ...payload.new };
+					});
 				}
 			)
 			.subscribe();
@@ -123,6 +127,7 @@ export default function TrackDeliveryPage({
 		};
 	}, [params.deliveryId, supabase]);
 
+	// Show loading spinner
 	if (loading) {
 		return (
 			<div className="container mx-auto px-4 py-8">
@@ -137,6 +142,7 @@ export default function TrackDeliveryPage({
 		);
 	}
 
+	// Show error state
 	if (error || !delivery) {
 		return (
 			<div className="container mx-auto px-4 py-8">
@@ -150,6 +156,7 @@ export default function TrackDeliveryPage({
 		);
 	}
 
+	// Get status step from delivery status
 	const getStatusStep = (status: DeliveryStatus): number => {
 		const statusToStep: Record<DeliveryStatus, number> = {
 			pending: 1,
@@ -164,11 +171,13 @@ export default function TrackDeliveryPage({
 
 	const currentStep = getStatusStep(delivery.status);
 
+	// Get map center coordinates
 	const mapCenter: [number, number] =
 		delivery.current_latitude && delivery.current_longitude
 			? [delivery.current_latitude, delivery.current_longitude]
 			: [40.7128, -74.006]; // Default to NYC
 
+	// Define map markers
 	const mapMarkers = [
 		{
 			position: mapCenter,
@@ -195,8 +204,8 @@ export default function TrackDeliveryPage({
 				<div className="mb-8">
 					<h1 className="text-3xl font-bold mb-2">Track Your Delivery</h1>
 					<p className="text-gray-600">
-						Order #{delivery.order?.id?.slice(0, 8)} from{' '}
-						{delivery.order?.business?.name}
+						Order #{delivery.orders?.id?.slice(0, 8)} from{' '}
+						{delivery.orders?.business?.name}
 					</p>
 				</div>
 
@@ -341,9 +350,10 @@ export default function TrackDeliveryPage({
 										<div>
 											<p className="font-semibold">Estimated Delivery</p>
 											<p className="text-sm text-gray-600">
-												{new Date(
-													delivery.estimated_delivery_time
-												).toLocaleString()}
+												{format(
+													new Date(delivery.estimated_delivery_time),
+													"MMM d, yyyy 'at' h:mm a"
+												)}
 											</p>
 										</div>
 									)}
@@ -376,7 +386,7 @@ export default function TrackDeliveryPage({
 					</CardHeader>
 					<CardContent>
 						<div className="space-y-3">
-							{delivery.order?.order_items?.map((orderItem: any) => (
+							{delivery.orders?.order_items?.map((orderItem: any) => (
 								<div
 									key={orderItem.id}
 									className="flex items-center justify-between"
