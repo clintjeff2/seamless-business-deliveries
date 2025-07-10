@@ -1,5 +1,6 @@
 import { requireRole } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
+import type { Delivery, DeliveryStatus } from '@/lib/types';
 import {
 	Card,
 	CardContent,
@@ -45,18 +46,18 @@ export default async function TransportDashboardPage() {
 	const stats = {
 		totalDeliveries: deliveries?.length || 0,
 		activeDeliveries:
-			deliveries?.filter((d) =>
+			deliveries?.filter((d: Delivery) =>
 				['accepted', 'picked_up', 'in_transit'].includes(d.status)
 			).length || 0,
 		completedDeliveries:
-			deliveries?.filter((d) => d.status === 'delivered').length || 0,
+			deliveries?.filter((d: Delivery) => d.status === 'delivered').length || 0,
 		totalEarnings:
 			deliveries
-				?.filter((d) => d.status === 'delivered')
-				.reduce((sum, d) => sum + (d.delivery_fee || 0), 0) || 0,
+				?.filter((d: Delivery) => d.status === 'delivered')
+				.reduce((sum: number, d: Delivery) => sum + (d.delivery_fee || 0), 0) ||
+			0,
 	};
 
-	console.log(deliveries)
 	return (
 		<div className="container mx-auto px-4 py-8">
 			<div className="mb-8">
@@ -163,7 +164,7 @@ export default async function TransportDashboardPage() {
 								{deliveries && deliveries.length > 0 ? (
 									<div className="space-y-6">
 										{deliveries
-											.filter((d) =>
+											.filter((d: Delivery) =>
 												[
 													'pending',
 													'accepted',
@@ -172,7 +173,7 @@ export default async function TransportDashboardPage() {
 												].includes(d.status)
 											)
 											.slice(0, 3)
-											.map((delivery) => (
+											.map((delivery: Delivery) => (
 												<Card key={delivery.id} className="border">
 													<CardContent className="p-4">
 														<div className="flex items-center justify-between mb-4">
