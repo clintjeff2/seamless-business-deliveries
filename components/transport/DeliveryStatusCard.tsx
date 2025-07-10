@@ -81,7 +81,7 @@ export function DeliveryStatusCard({ delivery }: DeliveryStatusCardProps) {
 						status: 'completed',
 						updated_at: new Date().toISOString(),
 					})
-					.eq('id', delivery.order_id);
+					.eq('id', delivery.orders?.id);
 
 				if (orderError) throw orderError;
 			}
