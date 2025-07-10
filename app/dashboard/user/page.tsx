@@ -132,15 +132,16 @@ export default async function UserDashboardPage() {
 	let orders = DEMO_ORDERS;
 	let recommendedItems = DEMO_ITEMS;
 
-	console.log(!isDemo, 'Jeff isDemo');
+	// console.log(!isDemo, 'Jeff isDemo');
 	if (!isDemo) {
 		const supabase = await createClient();
 
 		try {
 			// Fetch user's recent orders
 			const { data: ordersData } = await supabase
-			.from("orders")
-			.select(`
+				.from('orders')
+				.select(
+					`
 				*,
 				business:businesses(name, logo_url, category:categories(icon)),
 				order_items(
@@ -154,12 +155,12 @@ export default async function UserDashboardPage() {
 					actual_delivery_time,
 					transport_service:transport_services(service_name, phone)
 				)
-			`)
-			.eq("user_id", user.id)
-			.order("created_at", { ascending: false })
-			.limit(5)
+			`
+				)
+				.eq('user_id', user.id)
+				.order('created_at', { ascending: false })
+				.limit(5);
 
-			console.log(ordersData, 'Jeff Order', user.id);
 			// Fetch recommended items
 			const { data: itemsData } = await supabase
 				.from('items')
@@ -175,6 +176,7 @@ export default async function UserDashboardPage() {
 
 			orders = ordersData || DEMO_ORDERS;
 			recommendedItems = itemsData || DEMO_ITEMS;
+			console.log(orders);
 		} catch (error) {
 			console.error('Database error, using demo data:', error);
 		}
@@ -289,16 +291,18 @@ export default async function UserDashboardPage() {
 											<div className="text-right">
 												<Badge
 													variant={
-														order.delivery?.status === 'delivered'
+														order.delivery?.[0]?.status === 'delivered'
 															? 'default'
 															: 'secondary'
 													}
 												>
-													{order.delivery?.status || order.status}
+													{order.delivery?.[0]?.status || order.status}
 												</Badge>
-												{order.delivery?.status === 'in_transit' && (
+												{order.delivery?.[0]?.status === 'in_transit' && (
 													<Button asChild size="sm" className="mt-2">
-														<Link href={`/delivery/${order.delivery.id}/track`}>
+														<Link
+															href={`/delivery/${order.delivery[0].id}/track`}
+														>
 															Track
 														</Link>
 													</Button>
@@ -413,12 +417,13 @@ export default async function UserDashboardPage() {
 						</CardHeader>
 						<CardContent>
 							{orders.some(
-								(order: any) => order.delivery?.status === 'in_transit'
+								(order: any) => order.delivery?.[0]?.status === 'in_transit'
 							) ? (
 								<div className="space-y-3">
 									{orders
 										.filter(
-											(order: any) => order.delivery?.status === 'in_transit'
+											(order: any) =>
+												order.delivery?.[0]?.status === 'in_transit'
 										)
 										.map((order: any) => (
 											<div key={order.id} className="p-3 border rounded-lg">
@@ -429,7 +434,9 @@ export default async function UserDashboardPage() {
 													Order #{order.id.slice(0, 8)}
 												</p>
 												<Button asChild size="sm" className="mt-2 w-full">
-													<Link href={`/delivery/${order.delivery.id}/track`}>
+													<Link
+														href={`/delivery/${order.delivery[0].id}/track`}
+													>
 														Track Live
 													</Link>
 												</Button>
