@@ -47,6 +47,19 @@ CREATE POLICY "Business owners can view orders for their businesses" ON orders
 CREATE POLICY "Users can create orders" ON orders
     FOR INSERT WITH CHECK (auth.uid() = user_id);
 
+CREATE POLICY "Transport services can read their delivery orders" ON orders
+    FOR SELECT USING (
+        auth.uid() IN (
+            SELECT driver_id
+            FROM transport_services
+            WHERE id IN (
+                SELECT transport_service_id
+                FROM deliveries
+                WHERE order_id = orders.id
+            )
+        )
+    );
+
 -- Order items policies
 CREATE POLICY "Users can view order items for their orders" ON order_items
     FOR SELECT USING (
