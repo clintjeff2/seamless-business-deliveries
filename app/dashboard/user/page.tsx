@@ -176,7 +176,7 @@ export default async function UserDashboardPage() {
 
 			orders = ordersData || DEMO_ORDERS;
 			recommendedItems = itemsData || DEMO_ITEMS;
-			console.log(orders);
+			// console.log(orders);
 		} catch (error) {
 			console.error('Database error, using demo data:', error);
 		}
