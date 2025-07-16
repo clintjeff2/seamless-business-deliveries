@@ -5,6 +5,7 @@ import './globals.css';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Navbar } from '@/components/layout/navbar';
 import { Toaster } from '@/components/ui/toaster';
+import { ThemeProvider } from '@/components/theme-provider';
 
 const inter = Inter({ subsets: ['latin'] });
 
@@ -21,11 +22,18 @@ export default function RootLayout({
 	children: React.ReactNode;
 }) {
 	return (
-		<html lang="en">
+		<html lang="en" suppressHydrationWarning>
 			<body className={inter.className}>
-				<Navbar />
-				<main className="min-h-screen">{children}</main>
-				<Toaster />
+				<ThemeProvider
+					attribute="class"
+					defaultTheme="dark"
+					enableSystem={true}
+					disableTransitionOnChange={false}
+				>
+					<Navbar />
+					<main className="min-h-screen">{children}</main>
+					<Toaster />
+				</ThemeProvider>
 			</body>
 		</html>
 	);
