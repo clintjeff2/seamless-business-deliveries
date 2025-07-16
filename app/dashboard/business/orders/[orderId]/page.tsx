@@ -24,6 +24,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { format } from 'date-fns';
 import type { Order, OrderStatus } from '@/lib/types';
+import { formatXAF } from '@/lib/utils';
 
 // Loading spinner component
 function LoadingSpinner() {
@@ -373,8 +374,7 @@ export default function OrderDetailPage({
 													{item.quantity}x {item.item?.name}
 												</span>
 												<span>
-													$
-													{(item.quantity * (item.item?.price || 0)).toFixed(2)}
+													{formatXAF(item.quantity * (item.item?.price || 0))}
 												</span>
 											</div>
 										))}
@@ -382,7 +382,7 @@ export default function OrderDetailPage({
 									<Separator className="my-4" />
 									<div className="flex justify-between font-medium">
 										<span>Total</span>
-										<span>${order.total_amount.toFixed(2)}</span>
+										<span>{formatXAF(order.total_amount)}</span>
 									</div>
 								</div>
 
