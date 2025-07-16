@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import Link from 'next/link';
 import { Package, ShoppingCart, MapPin, Star, Clock } from 'lucide-react';
+import { formatXAF } from '@/lib/utils';
 
 // Demo data for when Supabase is not configured
 const DEMO_ORDERS = [
@@ -184,11 +185,12 @@ export default async function UserDashboardPage() {
 
 	return (
 		<div className="container mx-auto px-4 py-8">
-			<div className="mb-8">
-				<h1 className="text-3xl font-bold">
+			{/* Mobile responsive header */}
+			<div className="mb-6 sm:mb-8">
+				<h1 className="text-2xl sm:text-3xl font-bold">
 					Welcome back, {user.profile?.full_name}!
 				</h1>
-				<p className="text-gray-600">
+				<p className="text-gray-600 text-sm sm:text-base">
 					Track your orders and discover new items
 				</p>
 				{isDemo && (
@@ -201,45 +203,61 @@ export default async function UserDashboardPage() {
 				)}
 			</div>
 
-			<div className="grid lg:grid-cols-3 gap-8">
+			<div className="grid lg:grid-cols-3 gap-6 sm:gap-8">
 				{/* Main Content */}
-				<div className="lg:col-span-2 space-y-8">
-					{/* Quick Actions */}
-					<div className="grid md:grid-cols-3 gap-4">
+				<div className="lg:col-span-2 space-y-6 sm:space-y-8">
+					{/* Quick Actions - Mobile responsive grid */}
+					<div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
 						<Card>
-							<CardContent className="p-6 text-center">
-								<ShoppingCart className="h-8 w-8 mx-auto mb-2 text-blue-600" />
-								<h3 className="font-semibold">Browse Items</h3>
-								<p className="text-sm text-gray-600 mb-4">
+							<CardContent className="p-4 sm:p-6 text-center">
+								<ShoppingCart className="h-6 w-6 sm:h-8 sm:w-8 mx-auto mb-2 text-blue-600" />
+								<h3 className="font-semibold text-sm sm:text-base">
+									Browse Items
+								</h3>
+								<p className="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">
 									Discover new products
 								</p>
-								<Button asChild size="sm">
+								<Button asChild size="sm" className="w-full sm:w-auto">
 									<Link href="/businesses">Shop Now</Link>
 								</Button>
 							</CardContent>
 						</Card>
 
 						<Card>
-							<CardContent className="p-6 text-center">
-								<MapPin className="h-8 w-8 mx-auto mb-2 text-green-600" />
-								<h3 className="font-semibold">Track Orders</h3>
-								<p className="text-sm text-gray-600 mb-4">
+							<CardContent className="p-4 sm:p-6 text-center">
+								<MapPin className="h-6 w-6 sm:h-8 sm:w-8 mx-auto mb-2 text-green-600" />
+								<h3 className="font-semibold text-sm sm:text-base">
+									Track Orders
+								</h3>
+								<p className="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">
 									Live delivery tracking
 								</p>
-								<Button asChild size="sm" variant="outline">
+								<Button
+									asChild
+									size="sm"
+									variant="outline"
+									className="w-full sm:w-auto"
+								>
 									<Link href="/my-orders">View Orders</Link>
 								</Button>
 							</CardContent>
 						</Card>
 
 						<Card>
-							<CardContent className="p-6 text-center">
-								<Package className="h-8 w-8 mx-auto mb-2 text-purple-600" />
-								<h3 className="font-semibold">Order History</h3>
-								<p className="text-sm text-gray-600 mb-4">
+							<CardContent className="p-4 sm:p-6 text-center">
+								<Package className="h-6 w-6 sm:h-8 sm:w-8 mx-auto mb-2 text-purple-600" />
+								<h3 className="font-semibold text-sm sm:text-base">
+									Order History
+								</h3>
+								<p className="text-xs sm:text-sm text-gray-600 mb-3 sm:mb-4">
 									View past purchases
 								</p>
-								<Button asChild size="sm" variant="outline">
+								<Button
+									asChild
+									size="sm"
+									variant="outline"
+									className="w-full sm:w-auto"
+								>
 									<Link href="/my-orders">View All</Link>
 								</Button>
 							</CardContent>
@@ -249,8 +267,10 @@ export default async function UserDashboardPage() {
 					{/* Recent Orders */}
 					<Card>
 						<CardHeader>
-							<CardTitle>Recent Orders</CardTitle>
-							<CardDescription>
+							<CardTitle className="text-lg sm:text-xl">
+								Recent Orders
+							</CardTitle>
+							<CardDescription className="text-sm">
 								Your latest purchases and their status
 							</CardDescription>
 						</CardHeader>
@@ -260,10 +280,10 @@ export default async function UserDashboardPage() {
 									{orders.map((order: any) => (
 										<div
 											key={order.id}
-											className="flex items-center justify-between p-4 border rounded-lg"
+											className="flex flex-col sm:flex-row sm:items-center sm:justify-between p-3 sm:p-4 border rounded-lg space-y-3 sm:space-y-0"
 										>
-											<div className="flex items-center space-x-4">
-												<div className="w-12 h-12 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden">
+											<div className="flex items-center space-x-3 sm:space-x-4">
+												<div className="w-10 h-10 sm:w-12 sm:h-12 bg-gray-100 rounded-lg flex items-center justify-center overflow-hidden flex-shrink-0">
 													{order.business?.image_url ? (
 														<Image
 															src={order.business.image_url}
@@ -273,33 +293,38 @@ export default async function UserDashboardPage() {
 															className="object-cover w-full h-full"
 														/>
 													) : (
-														<Package className="h-6 w-6 text-gray-600" />
+														<Package className="h-4 w-4 sm:h-6 sm:w-6 text-gray-600" />
 													)}
 												</div>
-												<div>
-													<h4 className="font-semibold">
+												<div className="min-w-0 flex-1">
+													<h4 className="font-semibold text-sm sm:text-base">
 														{order.business?.name}
 													</h4>
 													<p className="text-sm text-gray-600">
-														${order.total_amount}
+														{formatXAF(order.total_amount)}
 													</p>
 													<p className="text-xs text-gray-500">
 														{new Date(order.created_at).toLocaleDateString()}
 													</p>
 												</div>
 											</div>
-											<div className="text-right">
+											<div className="flex items-center justify-between sm:justify-end sm:text-right space-x-2">
 												<Badge
 													variant={
 														order.delivery?.[0]?.status === 'delivered'
 															? 'default'
 															: 'secondary'
 													}
+													className="text-xs"
 												>
 													{order.delivery?.[0]?.status || order.status}
 												</Badge>
 												{order.delivery?.[0]?.status === 'in_transit' && (
-													<Button asChild size="sm" className="mt-2">
+													<Button
+														asChild
+														size="sm"
+														className="text-xs px-2 py-1"
+													>
 														<Link
 															href={`/delivery/${order.delivery[0].id}/track`}
 														>
@@ -312,10 +337,12 @@ export default async function UserDashboardPage() {
 									))}
 								</div>
 							) : (
-								<div className="text-center py-8">
-									<Package className="h-12 w-12 mx-auto text-gray-400 mb-4" />
-									<p className="text-gray-600">No orders yet</p>
-									<Button asChild className="mt-4">
+								<div className="text-center py-6 sm:py-8">
+									<Package className="h-10 w-10 sm:h-12 sm:w-12 mx-auto text-gray-400 mb-4" />
+									<p className="text-gray-600 text-sm sm:text-base">
+										No orders yet
+									</p>
+									<Button asChild className="mt-4 w-full sm:w-auto">
 										<Link href="/businesses">Start Shopping</Link>
 									</Button>
 								</div>
@@ -326,46 +353,48 @@ export default async function UserDashboardPage() {
 					{/* Recommended Items */}
 					<Card>
 						<CardHeader>
-							<CardTitle>Recommended for You</CardTitle>
-							<CardDescription>
+							<CardTitle className="text-lg sm:text-xl">
+								Recommended for You
+							</CardTitle>
+							<CardDescription className="text-sm">
 								Items you might like based on your preferences
 							</CardDescription>
 						</CardHeader>
 						<CardContent>
-							<div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
+							<div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 								{recommendedItems?.map((item: any) => (
 									<Link
 										key={item.id}
 										href={`/items/${item.id}`}
 										className="group"
 									>
-										<div className="border rounded-lg p-4 hover:shadow-md transition-shadow">
-											<div className="aspect-square bg-gray-100 rounded-lg mb-3 flex items-center justify-center overflow-hidden">
+										<div className="border rounded-lg p-3 sm:p-4 hover:shadow-md transition-shadow">
+											<div className="aspect-square bg-gray-100 rounded-lg mb-3 overflow-hidden">
 												{item.image_url ? (
 													<Image
 														src={item.image_url}
 														alt={item.name}
 														width={200}
 														height={200}
-														className="object-cover w-full h-full"
+														className="w-full h-full object-cover group-hover:scale-105 transition-transform"
 													/>
 												) : (
-													<Package className="h-8 w-8 text-gray-400" />
+													<div className="w-full h-full flex items-center justify-center">
+														<Package className="h-8 w-8 text-gray-400" />
+													</div>
 												)}
 											</div>
-											<h4 className="font-semibold group-hover:text-blue-600 line-clamp-2">
+											<h4 className="font-medium text-sm group-hover:text-blue-600 line-clamp-2">
 												{item.name}
 											</h4>
-											<p className="text-sm text-gray-600">
-												{item.business?.name}
+											<p className="text-sm text-gray-600 mt-1">
+												{formatXAF(item.price)}
 											</p>
-											<div className="flex items-center justify-between mt-2">
-												<span className="font-bold text-green-600">
-													${item.price}
-												</span>
-												<div className="flex items-center text-sm text-gray-500">
-													<Star className="h-3 w-3 mr-1" />
-													{item.business?.rating || 'New'}
+											<div className="flex items-center mt-2 text-xs text-gray-500">
+												<span>{item.business?.name}</span>
+												<span className="mx-1">•</span>
+												<div className="flex items-center">
+													⭐ {item.business?.rating || 'New'}
 												</div>
 											</div>
 										</div>
@@ -381,21 +410,25 @@ export default async function UserDashboardPage() {
 					{/* Profile Quick View */}
 					<Card>
 						<CardHeader>
-							<CardTitle>Profile</CardTitle>
+							<CardTitle className="text-lg">Profile</CardTitle>
 						</CardHeader>
 						<CardContent>
 							<div className="space-y-3">
 								<div>
 									<p className="text-sm text-gray-600">Name</p>
-									<p className="font-semibold">{user.profile?.full_name}</p>
+									<p className="font-semibold text-sm sm:text-base">
+										{user.profile?.full_name}
+									</p>
 								</div>
 								<div>
 									<p className="text-sm text-gray-600">Email</p>
-									<p className="font-semibold">{user.email}</p>
+									<p className="font-semibold text-sm break-all">
+										{user.email}
+									</p>
 								</div>
 								<div>
 									<p className="text-sm text-gray-600">Phone</p>
-									<p className="font-semibold">
+									<p className="font-semibold text-sm">
 										{user.profile?.phone || 'Not set'}
 									</p>
 								</div>
@@ -413,7 +446,7 @@ export default async function UserDashboardPage() {
 					{/* Active Deliveries */}
 					<Card>
 						<CardHeader>
-							<CardTitle>Active Deliveries</CardTitle>
+							<CardTitle className="text-lg">Active Deliveries</CardTitle>
 						</CardHeader>
 						<CardContent>
 							{orders.some(
@@ -445,7 +478,7 @@ export default async function UserDashboardPage() {
 								</div>
 							) : (
 								<div className="text-center py-4">
-									<Clock className="h-8 w-8 mx-auto text-gray-400 mb-2" />
+									<Clock className="h-6 w-6 sm:h-8 sm:w-8 mx-auto text-gray-400 mb-2" />
 									<p className="text-sm text-gray-600">No active deliveries</p>
 								</div>
 							)}
