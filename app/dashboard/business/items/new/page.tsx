@@ -99,9 +99,16 @@ export default function NewItemPage() {
 
 			if (itemError) throw itemError;
 
+			setFormData({
+				name: '',
+				description: '',
+				price: '',
+				stock_quantity: '',
+				is_available: true,
+			});
 			router.push('/dashboard/business');
 		} catch (error: any) {
-			setError(error.message);
+			setError(error.message)
 		} finally {
 			setLoading(false);
 		}
