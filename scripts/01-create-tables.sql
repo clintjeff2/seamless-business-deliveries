@@ -135,6 +135,7 @@ CREATE TABLE deliveries (
     actual_delivery_time TIMESTAMP WITH TIME ZONE,
     delivery_fee DECIMAL(8, 2),
     distance_km DECIMAL(8, 2),
+    original_distance_km DECIMAL(8, 2),
     driver_notes TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
