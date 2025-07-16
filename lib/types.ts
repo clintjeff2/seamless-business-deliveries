@@ -139,6 +139,7 @@ export interface Delivery {
 	actual_delivery_time?: string;
 	delivery_fee?: number;
 	distance_km?: number;
+	original_distance_km?: number;
 	driver_notes?: string;
 	created_at: string;
 	updated_at: string;
