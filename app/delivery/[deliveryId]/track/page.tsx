@@ -14,6 +14,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Map } from '@/components/ui/map'; // Your enhanced map component
 import { DeliveryChat } from '@/components/ui/delivery-chat';
+import { FloatingChat } from '@/components/ui/floating-chat';
+import Link from 'next/link';
 import {
 	MapPin,
 	Phone,
@@ -26,6 +28,7 @@ import {
 	Battery,
 	Signal,
 	MessageCircle,
+	ExternalLink,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import type { DeliveryStatus } from '@/lib/types';
@@ -43,14 +46,21 @@ interface DeliveryWithDetails {
 	original_distance_km?: number;
 	orders?: {
 		id: string;
+		user_id: string;
 		business?: {
 			name: string;
 		};
+		customer?: {
+			full_name: string;
+			phone: string;
+		};
 	};
 	transport_service?: {
+		id: string;
 		service_name: string;
 		vehicle_type: string;
 		phone?: string;
+		driver_id?: string;
 		driver?: {
 			full_name: string;
 			phone?: string;
@@ -113,6 +123,7 @@ export default function DeliveryTrackingPage() {
 	const [routeInfo, setRouteInfo] = useState<RouteInfo | null>(null);
 	const [estimatedArrival, setEstimatedArrival] = useState<Date | null>(null);
 	const [trafficDelay, setTrafficDelay] = useState<number>(0);
+	const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
 	const [driverStatus, setDriverStatus] = useState<
 		'online' | 'offline' | 'away'
 	>('online');
@@ -143,8 +154,8 @@ export default function DeliveryTrackingPage() {
 		}
 
 		// Check if current user is the customer for this delivery
-		if (delivery.orders?.customer_id && currentUser.id) {
-			const isCustomer = delivery.orders.customer_id === currentUser.id;
+		if (delivery.orders?.user_id && currentUser.id) {
+			const isCustomer = delivery.orders.user_id === currentUser.id;
 			return isCustomer ? 'customer' : 'driver';
 		}
 
@@ -401,10 +412,10 @@ export default function DeliveryTrackingPage() {
 
 				{/* Driver Status Overlay - repositioned for mobile */}
 				<div className="absolute bottom-4 left-4 sm:bottom-4 sm:right-4 space-y-2">
-					<div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm p-2 sm:p-3 rounded-lg shadow-lg">
-						<div className="flex items-center space-x-2">
+					<div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm p-1.5 sm:p-2 rounded-md shadow-lg">
+						<div className="flex items-center space-x-1.5">
 							<div
-								className={`w-2 h-2 rounded-full ${
+								className={`w-1.5 h-1.5 rounded-full ${
 									driverStatus === 'online'
 										? 'bg-green-500 animate-pulse'
 										: driverStatus === 'away'
@@ -412,7 +423,7 @@ export default function DeliveryTrackingPage() {
 										: 'bg-red-500'
 								}`}
 							></div>
-							<span className="text-xs sm:text-sm font-medium capitalize dark:text-white">
+							<span className="text-xs font-medium capitalize dark:text-white">
 								{delivery?.transport_service?.service_name || 'Driver'} -{' '}
 								{driverStatus}
 							</span>
@@ -420,15 +431,75 @@ export default function DeliveryTrackingPage() {
 					</div>
 
 					{/* Mobile-friendly delivery status indicator */}
-					<div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm p-2 sm:p-3 rounded-lg shadow-lg">
-						<div className="flex items-center space-x-2">
-							<Truck className="h-3 w-3 sm:h-4 sm:w-4 text-blue-500" />
-							<span className="text-xs sm:text-sm font-medium dark:text-white capitalize">
+					<div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm p-1.5 sm:p-2 rounded-md shadow-lg">
+						<div className="flex items-center space-x-1.5">
+							<Truck className="h-3 w-3 text-blue-500" />
+							<span className="text-xs font-medium dark:text-white capitalize">
 								{delivery.status.replace('_', ' ')}
 							</span>
 						</div>
 					</div>
+
+					{/* Compact Route Information Overlay */}
+					{routeInfo && (
+						<div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm p-2 rounded-md shadow-lg">
+							<div className="grid grid-cols-2 gap-2 text-xs">
+								<div className="text-center">
+									<div className="font-bold text-blue-600 dark:text-blue-400">
+										{(routeInfo.distance / 1000).toFixed(1)}km
+									</div>
+									<div className="text-gray-600 dark:text-gray-400 text-xs">
+										Distance
+									</div>
+								</div>
+								<div className="text-center">
+									<div className="font-bold text-green-600 dark:text-green-400">
+										{formatTimeRemaining(routeInfo.durationInTraffic)}
+									</div>
+									<div className="text-gray-600 dark:text-gray-400 text-xs">
+										ETA
+									</div>
+								</div>
+								{trafficDelay > 60 && (
+									<div className="text-center col-span-1">
+										<div className="font-bold text-orange-600 dark:text-orange-400">
+											+{formatTimeRemaining(trafficDelay)}
+										</div>
+										<div className="text-gray-600 dark:text-gray-400 text-xs">
+											Traffic
+										</div>
+									</div>
+								)}
+								{estimatedArrival && (
+									<div className="text-center col-span-1">
+										<div className="font-bold text-purple-600 dark:text-purple-400">
+											{format(estimatedArrival, 'h:mm a')}
+										</div>
+										<div className="text-gray-600 dark:text-gray-400 text-xs">
+											Arrival
+										</div>
+									</div>
+								)}
+							</div>
+						</div>
+					)}
 				</div>
+
+				{/* Route Calculation Indicator */}
+				{!routeInfo &&
+					delivery?.current_latitude &&
+					delivery?.current_longitude &&
+					delivery?.delivery_latitude &&
+					delivery?.delivery_longitude && (
+						<div className="absolute top-4 right-4 bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm p-3 rounded-lg shadow-lg">
+							<div className="flex items-center space-x-2">
+								<div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+								<span className="text-sm font-medium dark:text-white">
+									Calculating route...
+								</span>
+							</div>
+						</div>
+					)}
 			</div>
 
 			{/* Content Section - Mobile responsive layout */}
@@ -700,6 +771,18 @@ export default function DeliveryTrackingPage() {
 													SMS
 												</Button>
 											</div>
+											<Button
+												asChild
+												variant="outline"
+												size="sm"
+												className="w-full text-xs sm:text-sm"
+											>
+												<Link href="/chats">
+													<MessageCircle className="h-3 w-3 sm:h-4 sm:w-4 mr-1 sm:mr-2" />
+													View All Chats
+													<ExternalLink className="h-3 w-3 sm:h-4 sm:w-4 ml-1 sm:ml-2" />
+												</Link>
+											</Button>
 										</div>
 									</CardContent>
 								</Card>
@@ -745,38 +828,18 @@ export default function DeliveryTrackingPage() {
 				</div>
 			</div>
 
-			{/* Floating Chat Button & Chat Component - Mobile optimized */}
+			{/* Enhanced Floating Chat - Mobile optimized */}
 			{currentUser &&
+				delivery &&
 				delivery.status !== 'delivered' &&
 				delivery.status !== 'cancelled' && (
-					<>
-						{/* Floating Chat Button */}
-						{!showChat && (
-							<div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50">
-								<Button
-									onClick={() => setShowChat(true)}
-									className="h-12 w-12 sm:h-14 sm:w-14 rounded-full bg-blue-500 hover:bg-blue-600 text-white shadow-lg"
-									size="sm"
-								>
-									<MessageCircle className="h-5 w-5 sm:h-6 sm:w-6" />
-								</Button>
-							</div>
-						)}
-
-						{/* Chat Component */}
-						{showChat && (
-							<div className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-50">
-								<DeliveryChat
-									deliveryId={deliveryId}
-									currentUserId={currentUser.id}
-									userType={getUserType()}
-									isMinimized={isChatMinimized}
-									onToggleMinimize={() => setIsChatMinimized((prev) => !prev)}
-									onClose={() => setShowChat(false)}
-								/>
-							</div>
-						)}
-					</>
+					<FloatingChat
+						deliveryId={deliveryId}
+						currentUserId={currentUser.id}
+						userType="customer"
+						otherUserPhone={delivery.transport_service?.phone}
+						className="bottom-4 right-4 sm:bottom-6 sm:right-6"
+					/>
 				)}
 		</div>
 	);
