@@ -743,6 +743,18 @@ export function Map({
 				</div>
 			)}
 
+			{/* Route Calculation Indicator - Small overlay */}
+			{isLoading && (
+				<div className="absolute top-4 right-4 bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm p-3 rounded-lg shadow-lg">
+					<div className="flex items-center space-x-2">
+						<div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
+						<span className="text-sm font-medium dark:text-white">
+							Calculating route...
+						</span>
+					</div>
+				</div>
+			)}
+
 			{/* CSS for animations */}
 			<style jsx>{`
 				@keyframes pulse {
