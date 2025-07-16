@@ -1,6 +1,7 @@
 import { requireRole } from '@/lib/auth';
 import { createClient } from '@/lib/supabase/server';
 import type { Delivery, DeliveryStatus } from '@/lib/types';
+import { formatXAF } from '@/lib/utils';
 import {
 	Card,
 	CardContent,
@@ -14,7 +15,10 @@ import Link from 'next/link';
 import { Truck, MapPin, Clock, DollarSign, Star } from 'lucide-react';
 import { ServiceStatusCard } from '@/components/transport/ServiceStatusCard';
 import { DeliveryStatusCard } from '@/components/transport/DeliveryStatusCard';
-import { formatXAF } from '@/lib/utils';
+import { NotificationCenter } from '@/components/ui/notification-center';
+import { FloatingChat } from '@/components/ui/floating-chat';
+import { MessageCircle } from 'lucide-react';
+import { format } from 'date-fns';
 
 export default async function TransportDashboardPage() {
 	const user = await requireRole('transport');
@@ -44,6 +48,37 @@ export default async function TransportDashboardPage() {
 		.order('created_at', { ascending: false })
 		.limit(10);
 
+	// Fetch active chats and unread message counts
+	const { data: activeChats } = await supabase
+		.from('delivery_chats')
+		.select(
+			`
+			*,
+			delivery:deliveries(
+				id,
+				status,
+				orders(
+					id,
+					business:businesses(name),
+					customer:profiles!orders_user_id_fkey(full_name)
+				)
+			),
+			unread_count:delivery_messages(count)
+		`
+		)
+		.eq('driver_id', user.id)
+		.eq('status', 'active')
+		.order('last_message_at', { ascending: false })
+		.limit(5);
+
+	// Calculate total unread messages
+	const totalUnreadMessages = await supabase
+		.from('delivery_messages')
+		.select('id', { count: 'exact' })
+		.eq('is_read', false)
+		.in('chat_id', activeChats?.map((chat) => chat.id) || [])
+		.neq('sender_id', user.id);
+
 	const stats = {
 		totalDeliveries: deliveries?.length || 0,
 		activeDeliveries:
@@ -61,12 +96,17 @@ export default async function TransportDashboardPage() {
 
 	return (
 		<div className="container mx-auto px-4 py-8">
-			{/* Mobile responsive header */}
-			<div className="mb-6 sm:mb-8">
-				<h1 className="text-2xl sm:text-3xl font-bold">Transport Dashboard</h1>
-				<p className="text-gray-600 text-sm sm:text-base">
-					{transportService?.service_name || 'Your Transport Service'}
-				</p>
+			{/* Mobile responsive header with notifications */}
+			<div className="mb-6 sm:mb-8 flex items-center justify-between">
+				<div>
+					<h1 className="text-2xl sm:text-3xl font-bold">
+						Transport Dashboard
+					</h1>
+					<p className="text-gray-600 text-sm sm:text-base">
+						{transportService?.service_name || 'Your Transport Service'}
+					</p>
+				</div>
+				<NotificationCenter userId={user.id} userRole="transport" />
 			</div>
 
 			{!transportService ? (
@@ -156,6 +196,88 @@ export default async function TransportDashboardPage() {
 					<div className="grid lg:grid-cols-2 gap-6 sm:gap-8">
 						{/* Service Status */}
 						<ServiceStatusCard transportService={transportService} />
+
+						{/* Active Chats Card */}
+						{activeChats && activeChats.length > 0 && (
+							<Card>
+								<CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
+									<div>
+										<CardTitle className="text-lg sm:text-xl flex items-center">
+											<MessageCircle className="h-5 w-5 mr-2" />
+											Active Chats
+											{totalUnreadMessages?.count &&
+												totalUnreadMessages.count > 0 && (
+													<Badge variant="destructive" className="ml-2">
+														{totalUnreadMessages.count}
+													</Badge>
+												)}
+										</CardTitle>
+										<CardDescription className="text-sm">
+											Customer conversations
+										</CardDescription>
+									</div>
+								</CardHeader>
+								<CardContent>
+									<div className="space-y-3">
+										{activeChats.slice(0, 3).map((chat: any) => (
+											<div
+												key={chat.id}
+												className="flex items-center justify-between p-3 border rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+											>
+												<div className="flex-1 min-w-0">
+													<p className="font-medium text-sm truncate dark:text-white">
+														{chat.delivery?.orders?.customer?.full_name ||
+															'Customer'}
+													</p>
+													<p className="text-xs text-gray-600 dark:text-gray-400 truncate">
+														Order #{chat.delivery?.orders?.id?.slice(0, 8)} •
+														{chat.delivery?.orders?.business?.name}
+													</p>
+													<p className="text-xs text-gray-500 dark:text-gray-500">
+														{format(
+															new Date(chat.last_message_at),
+															'MMM d, h:mm a'
+														)}
+													</p>
+												</div>
+												<div className="flex items-center space-x-2 ml-3">
+													{chat.unread_count && chat.unread_count > 0 && (
+														<Badge variant="destructive" className="text-xs">
+															{chat.unread_count}
+														</Badge>
+													)}
+													<Button
+														size="sm"
+														variant="outline"
+														className="text-xs"
+														asChild
+													>
+														<Link href={`/delivery/${chat.delivery_id}/track`}>
+															Open
+														</Link>
+													</Button>
+												</div>
+											</div>
+										))}
+
+										{activeChats.length > 3 && (
+											<div className="text-center pt-2">
+												<Button
+													variant="ghost"
+													size="sm"
+													className="text-sm"
+													onClick={() => {
+														// Could link to a dedicated chats page in the future
+													}}
+												>
+													View all {activeChats.length} chats
+												</Button>
+											</div>
+										)}
+									</div>
+								</CardContent>
+							</Card>
+						)}
 
 						{/* Recent Deliveries */}
 						<Card>
