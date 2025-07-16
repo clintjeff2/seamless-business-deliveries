@@ -8,6 +8,8 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Map } from '@/components/ui/map';
 import { DeliveryChat } from '@/components/ui/delivery-chat';
+import { FloatingChat } from '@/components/ui/floating-chat';
+import Link from 'next/link';
 import {
 	MapPin,
 	Phone,
@@ -21,6 +23,7 @@ import {
 	Truck,
 	Target,
 	CheckCircle,
+	ExternalLink,
 } from 'lucide-react';
 import { format } from 'date-fns';
 import type { DeliveryStatus } from '@/lib/types';
@@ -77,6 +80,9 @@ export default function DeliveryNavigationPage() {
 	const [routeInfo, setRouteInfo] = useState<RouteInfo | null>(null);
 	const [estimatedArrival, setEstimatedArrival] = useState<Date | null>(null);
 	const [trafficDelay, setTrafficDelay] = useState<number>(0);
+	const [isCalculatingRoute, setIsCalculatingRoute] = useState(false);
+	const [locationUpdateInterval, setLocationUpdateInterval] =
+		useState<NodeJS.Timeout | null>(null);
 	const [driverStatus, setDriverStatus] = useState<
 		'online' | 'offline' | 'away'
 	>('online');
@@ -192,24 +198,96 @@ export default function DeliveryNavigationPage() {
 		if (!delivery) return;
 
 		try {
+			const updates: any = {
+				status: newStatus,
+				updated_at: new Date().toISOString(),
+			};
+
+			// If starting transit, get current location and update it
+			if (newStatus === 'in_transit') {
+				if (navigator.geolocation) {
+					const position = await new Promise<GeolocationPosition>(
+						(resolve, reject) => {
+							navigator.geolocation.getCurrentPosition(resolve, reject, {
+								enableHighAccuracy: true,
+								timeout: 10000,
+								maximumAge: 30000,
+							});
+						}
+					);
+
+					updates.current_latitude = position.coords.latitude;
+					updates.current_longitude = position.coords.longitude;
+				}
+			}
+
 			const { error } = await supabase
 				.from('deliveries')
-				.update({
-					status: newStatus,
-					updated_at: new Date().toISOString(),
-				})
+				.update(updates)
 				.eq('id', deliveryId);
 
 			if (error) throw error;
 
 			setDelivery((prev) => {
 				if (!prev) return null;
-				return { ...prev, status: newStatus };
+				return { ...prev, ...updates };
 			});
 		} catch (error: any) {
 			console.error('Error updating delivery status:', error);
 		}
 	};
+
+	// Real-time location tracking for drivers
+	useEffect(() => {
+		if (!delivery || delivery.status !== 'in_transit') return;
+
+		const updateDriverLocation = async (position: GeolocationPosition) => {
+			try {
+				const { error } = await supabase
+					.from('deliveries')
+					.update({
+						current_latitude: position.coords.latitude,
+						current_longitude: position.coords.longitude,
+						updated_at: new Date().toISOString(),
+					})
+					.eq('id', deliveryId);
+
+				if (error) throw error;
+
+				// Update local state
+				setDelivery((prev) => {
+					if (!prev) return null;
+					return {
+						...prev,
+						current_latitude: position.coords.latitude,
+						current_longitude: position.coords.longitude,
+					};
+				});
+			} catch (error) {
+				console.error('Error updating driver location:', error);
+			}
+		};
+
+		let watchId: number | null = null;
+
+		if (navigator.geolocation) {
+			watchId = navigator.geolocation.watchPosition(
+				updateDriverLocation,
+				(error) => console.error('Geolocation error:', error),
+				{
+					enableHighAccuracy: true,
+					maximumAge: 10000, // 10 seconds
+					timeout: 15000,
+				}
+			);
+		}
+
+		return () => {
+			if (watchId !== null) {
+				navigator.geolocation.clearWatch(watchId);
+			}
+		};
+	}, [delivery?.status, deliveryId, supabase]);
 
 	// Format time remaining
 	const formatTimeRemaining = (seconds: number): string => {
@@ -324,7 +402,7 @@ export default function DeliveryNavigationPage() {
 	};
 
 	return (
-		<div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
+		<div className="h-screen flex flex-col lg:flex-row bg-gray-100 dark:bg-gray-900">
 			{/* Header */}
 			<div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 p-4">
 				<div className="flex items-center justify-between">
@@ -502,6 +580,13 @@ export default function DeliveryNavigationPage() {
 									Chat
 								</Button>
 							</div>
+							<Button asChild variant="outline" size="sm" className="w-full">
+								<Link href="/chats">
+									<MessageCircle className="h-4 w-4 mr-2" />
+									View All Chats
+									<ExternalLink className="h-4 w-4 ml-2" />
+								</Link>
+							</Button>
 						</CardContent>
 					</Card>
 
@@ -592,18 +677,15 @@ export default function DeliveryNavigationPage() {
 				</div>
 			</div>
 
-			{/* Chat Component */}
-			{showChat && currentUser && (
-				<div className="fixed bottom-6 right-6 z-50">
-					<DeliveryChat
-						deliveryId={deliveryId}
-						currentUserId={currentUser.id}
-						userType="driver"
-						isMinimized={isChatMinimized}
-						onToggleMinimize={() => setIsChatMinimized((prev) => !prev)}
-						onClose={() => setShowChat(false)}
-					/>
-				</div>
+			{/* Enhanced Floating Chat for Driver */}
+			{currentUser && delivery && (
+				<FloatingChat
+					deliveryId={deliveryId}
+					currentUserId={currentUser.id}
+					userType="driver"
+					otherUserPhone={delivery.orders?.customer?.phone}
+					className="bottom-6 right-6 lg:bottom-6 lg:right-80"
+				/>
 			)}
 		</div>
 	);
