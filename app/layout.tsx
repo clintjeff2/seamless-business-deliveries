@@ -7,7 +7,18 @@ import { Navbar } from '@/components/layout/navbar';
 import { Toaster } from '@/components/ui/toaster';
 import { ThemeProvider } from '@/components/theme-provider';
 
-const inter = Inter({ subsets: ['latin'] });
+const inter = Inter({
+	subsets: ['latin'],
+	weight: ['300', '400', '500', '600', '700', '800', '900'],
+	display: 'swap',
+	fallback: [
+		'system-ui',
+		'-apple-system',
+		'BlinkMacSystemFont',
+		'Segoe UI',
+		'sans-serif',
+	],
+});
 
 export const metadata: Metadata = {
 	title: 'DeliveryHub - Material Tracking & Delivery Platform',
