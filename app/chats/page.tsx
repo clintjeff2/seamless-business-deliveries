@@ -102,7 +102,7 @@ export default function ChatsPage() {
 								customer:profiles!orders_user_id_fkey(full_name, avatar_url, phone)
 							),
 							transport_service:transport_services(
-								driver:profiles(full_name, avatar_url, phone)
+								driver:profiles!transport_services_driver_id_fkey(full_name, avatar_url, phone)
 							)
 						),
 						participants:delivery_chat_participants(
@@ -110,7 +110,7 @@ export default function ChatsPage() {
 							user_type,
 							is_online,
 							last_seen_at,
-							profile:profiles(full_name, avatar_url, phone)
+							profile:profiles!delivery_chat_participants_user_id_fkey(full_name, avatar_url, phone)
 						),
 						last_message:delivery_messages(
 							content,
