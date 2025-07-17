@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import React from 'react';
 import { createClient } from '@/lib/supabase/client';
@@ -60,13 +60,8 @@ function LoadingSkeleton() {
 	);
 }
 
-export default function DeliveriesPage({
-	params,
-	searchParams,
-}: {
-	params: {};
-	searchParams: { search?: string; status?: string };
-}) {
+// Component that uses useSearchParams wrapped in Suspense
+function DeliveriesContent() {
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
 	const [transportService, setTransportService] =
@@ -74,18 +69,19 @@ export default function DeliveriesPage({
 	const [deliveries, setDeliveries] = useState<Delivery[]>([]);
 	const [activeTab, setActiveTab] = useState<string>('all');
 	const router = useRouter();
-	const searchParamsHook = useSearchParams();
+	const searchParams = useSearchParams();
 	const supabase = createClient();
-	const resolvedSearchParams = React.use(
-		searchParams as unknown as Promise<{ search?: string; status?: string }>
-	);
+
+	// Get search parameters
+	const search = searchParams.get('search') || '';
+	const status = searchParams.get('status') || '';
 
 	useEffect(() => {
 		// Set active tab from URL params
-		if (resolvedSearchParams.status) {
-			setActiveTab(resolvedSearchParams.status);
+		if (status) {
+			setActiveTab(status);
 		}
-	}, [resolvedSearchParams.status]);
+	}, [status]);
 
 	useEffect(() => {
 		const fetchData = async () => {
@@ -144,9 +140,9 @@ export default function DeliveriesPage({
 					.eq('transport_service_id', service.id)
 					.order('created_at', { ascending: false });
 
-				if (resolvedSearchParams.search) {
+				if (search) {
 					query = query.or(
-						`delivery_address.ilike.%${resolvedSearchParams.search}%,orders.delivery_notes.ilike.%${resolvedSearchParams.search}%`
+						`delivery_address.ilike.%${search}%,orders.delivery_notes.ilike.%${search}%`
 					);
 				}
 
@@ -189,11 +185,11 @@ export default function DeliveriesPage({
 		};
 
 		fetchData();
-	}, [resolvedSearchParams.search, router, supabase]);
+	}, [search, router, supabase]);
 
 	const handleTabChange = (value: string) => {
 		setActiveTab(value);
-		const params = new URLSearchParams(searchParamsHook);
+		const params = new URLSearchParams(searchParams);
 
 		if (value === 'all') {
 			params.delete('status');
@@ -201,8 +197,8 @@ export default function DeliveriesPage({
 			params.set('status', value);
 		}
 
-		if (resolvedSearchParams.search) {
-			params.set('search', resolvedSearchParams.search);
+		if (search) {
+			params.set('search', search);
 		}
 
 		router.push(`/dashboard/transport/requests?${params.toString()}`);
@@ -276,7 +272,7 @@ export default function DeliveriesPage({
 				<p className="text-gray-600">Manage your delivery requests</p>
 			</div>
 
-			<DeliverySearchForm initialSearch={resolvedSearchParams.search || ''} />
+			<DeliverySearchForm initialSearch={search} />
 
 			<Tabs
 				value={activeTab}
@@ -402,5 +398,13 @@ export default function DeliveriesPage({
 				</TabsContent>
 			</Tabs>
 		</div>
+	);
+}
+
+export default function DeliveriesPage() {
+	return (
+		<Suspense fallback={<LoadingSkeleton />}>
+			<DeliveriesContent />
+		</Suspense>
 	);
 }
