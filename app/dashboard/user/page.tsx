@@ -132,6 +132,7 @@ const hasSupabaseConfig = () => {
 
 export default function UserDashboardPage() {
 	const [user, setUser] = useState<any>(null);
+	const [profile, setProfile] = useState<any>(null);
 	const [orders, setOrders] = useState<any[]>(DEMO_ORDERS);
 	const [recommendedItems, setRecommendedItems] = useState<any[]>(DEMO_ITEMS);
 	const [loading, setLoading] = useState(true);
@@ -141,6 +142,15 @@ export default function UserDashboardPage() {
 	useEffect(() => {
 		const initializeDashboard = async () => {
 			if (isDemo) {
+				// Set demo user data
+				setUser({
+					id: 'demo-user',
+					email: 'demo@example.com',
+				});
+				setProfile({
+					full_name: 'Demo User',
+					phone: '+1234567890',
+				});
 				setLoading(false);
 				return;
 			}
@@ -157,6 +167,17 @@ export default function UserDashboardPage() {
 				}
 
 				setUser(authUser);
+
+				// Fetch user profile
+				const { data: profileData } = await supabase
+					.from('profiles')
+					.select('*')
+					.eq('id', authUser.id)
+					.single();
+
+				if (profileData) {
+					setProfile(profileData);
+				}
 
 				// Fetch user's recent orders
 				const { data: ordersData } = await supabase
@@ -312,7 +333,8 @@ export default function UserDashboardPage() {
 			{/* Mobile responsive header */}
 			<div className="mb-6 sm:mb-8">
 				<h1 className="text-2xl sm:text-3xl font-bold">
-					Welcome back, {user.profile?.full_name}!
+					Welcome back,{' '}
+					{profile?.full_name || user?.email?.split('@')[0] || 'User'}!
 				</h1>
 				<p className="text-gray-600 text-sm sm:text-base">
 					Track your orders and discover new items
@@ -541,19 +563,19 @@ export default function UserDashboardPage() {
 								<div>
 									<p className="text-sm text-gray-600">Name</p>
 									<p className="font-semibold text-sm sm:text-base">
-										{user.profile?.full_name}
+										{profile?.full_name || 'Not set'}
 									</p>
 								</div>
 								<div>
 									<p className="text-sm text-gray-600">Email</p>
 									<p className="font-semibold text-sm break-all">
-										{user.email}
+										{user?.email || 'Not set'}
 									</p>
 								</div>
 								<div>
 									<p className="text-sm text-gray-600">Phone</p>
 									<p className="font-semibold text-sm">
-										{user.profile?.phone || 'Not set'}
+										{profile?.phone || 'Not set'}
 									</p>
 								</div>
 								<Button
