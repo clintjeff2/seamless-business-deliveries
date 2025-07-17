@@ -60,7 +60,7 @@ export default async function TransportDashboardPage() {
 				orders(
 					id,
 					business:businesses(name),
-					customer:profiles!orders_user_id_fkey(full_name)
+					customer:profiles!orders_user_id_fkey(full_name, phone)
 				)
 			),
 			unread_count:delivery_messages(count)
