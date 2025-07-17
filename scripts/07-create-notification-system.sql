@@ -122,7 +122,7 @@ BEGIN
             'order_id', NEW.order_id,
             'driver_name', driver_name,
             'service_name', service_name,
-            'driver_phone', (SELECT phone FROM profiles p JOIN transport_services ts ON p.id = ts.driver_id WHERE ts.id = NEW.transport_service_id)
+            'driver_phone', (SELECT p.phone FROM profiles p JOIN transport_services ts ON p.id = ts.driver_id WHERE ts.id = NEW.transport_service_id)
         );
         
         -- Notify customer
