@@ -1,6 +1,8 @@
+'use client';
+
+import { useState, useEffect } from 'react';
 import { requireRole } from '@/lib/auth';
-import Image from 'next/image';
-import { createClient } from '@/lib/supabase/server';
+import { createClient } from '@/lib/supabase/client';
 import {
 	Card,
 	CardContent,
@@ -10,8 +12,10 @@ import {
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import Link from 'next/link';
 import { Package, ShoppingCart, MapPin, Star, Clock } from 'lucide-react';
+import Link from 'next/link';
+import Image from 'next/image';
+import { format } from 'date-fns';
 import { formatXAF } from '@/lib/utils';
 
 // Demo data for when Supabase is not configured
@@ -126,61 +130,181 @@ const hasSupabaseConfig = () => {
 	);
 };
 
-export default async function UserDashboardPage() {
-	const user = await requireRole('user');
+export default function UserDashboardPage() {
+	const [user, setUser] = useState<any>(null);
+	const [orders, setOrders] = useState<any[]>(DEMO_ORDERS);
+	const [recommendedItems, setRecommendedItems] = useState<any[]>(DEMO_ITEMS);
+	const [loading, setLoading] = useState(true);
+	const supabase = createClient();
 	const isDemo = !hasSupabaseConfig();
 
-	let orders = DEMO_ORDERS;
-	let recommendedItems = DEMO_ITEMS;
+	useEffect(() => {
+		const initializeDashboard = async () => {
+			if (isDemo) {
+				setLoading(false);
+				return;
+			}
 
-	// console.log(!isDemo, 'Jeff isDemo');
-	if (!isDemo) {
-		const supabase = await createClient();
+			try {
+				// Get user info
+				const {
+					data: { user: authUser },
+				} = await supabase.auth.getUser();
 
-		try {
-			// Fetch user's recent orders
-			const { data: ordersData } = await supabase
-				.from('orders')
-				.select(
+				if (!authUser) {
+					window.location.href = '/login';
+					return;
+				}
+
+				setUser(authUser);
+
+				// Fetch user's recent orders
+				const { data: ordersData } = await supabase
+					.from('orders')
+					.select(
+						`
+						*,
+						business:businesses(name, logo_url, category:categories(icon)),
+						order_items(
+							*,
+							item:items(name, price, image_url)
+						),
+						delivery:deliveries(
+							id,
+							status,
+							estimated_delivery_time,
+							actual_delivery_time,
+							transport_service:transport_services(service_name, phone)
+						)
 					`
-				*,
-				business:businesses(name, logo_url, category:categories(icon)),
-				order_items(
-					*,
-					item:items(name, price, image_url)
-				),
-				delivery:deliveries(
-					id,
-					status,
-					estimated_delivery_time,
-					actual_delivery_time,
-					transport_service:transport_services(service_name, phone)
-				)
-			`
-				)
-				.eq('user_id', user.id)
-				.order('created_at', { ascending: false })
-				.limit(5);
+					)
+					.eq('user_id', authUser.id)
+					.order('created_at', { ascending: false })
+					.limit(5);
 
-			// Fetch recommended items
-			const { data: itemsData } = await supabase
-				.from('items')
-				.select(
+				// Fetch recommended items
+				const { data: itemsData } = await supabase
+					.from('items')
+					.select(
+						`
+						*,
+						business:businesses(name, rating)
 					`
-          *,
-          business:businesses(name, rating),
-          image_url
-        `
-				)
-				.eq('is_available', true)
-				.limit(6);
+					)
+					.eq('is_available', true)
+					.order('created_at', { ascending: false })
+					.limit(6);
 
-			orders = ordersData || DEMO_ORDERS;
-			recommendedItems = itemsData || DEMO_ITEMS;
-			// console.log(orders);
-		} catch (error) {
-			console.error('Database error, using demo data:', error);
+				if (ordersData) setOrders(ordersData);
+				if (itemsData) setRecommendedItems(itemsData);
+
+				// Set up real-time subscriptions for order updates
+				const orderChannel = supabase
+					.channel('user-orders-updates')
+					.on(
+						'postgres_changes',
+						{
+							event: 'UPDATE',
+							schema: 'public',
+							table: 'orders',
+							filter: `user_id=eq.${authUser.id}`,
+						},
+						(payload) => {
+							setOrders((prevOrders) =>
+								prevOrders.map((order) =>
+									order.id === payload.new.id
+										? { ...order, ...payload.new }
+										: order
+								)
+							);
+						}
+					)
+					.subscribe();
+
+				// Set up real-time subscriptions for delivery updates
+				const deliveryChannel = supabase
+					.channel('user-deliveries-updates')
+					.on(
+						'postgres_changes',
+						{
+							event: 'UPDATE',
+							schema: 'public',
+							table: 'deliveries',
+						},
+						(payload) => {
+							setOrders((prevOrders) =>
+								prevOrders.map((order) => {
+									if (
+										order.delivery?.[0]?.id === payload.new.id ||
+										order.delivery?.id === payload.new.id
+									) {
+										return {
+											...order,
+											delivery: Array.isArray(order.delivery)
+												? [{ ...order.delivery[0], ...payload.new }]
+												: { ...order.delivery, ...payload.new },
+										};
+									}
+									return order;
+								})
+							);
+						}
+					)
+					.subscribe();
+
+				// Cleanup subscriptions on unmount
+				return () => {
+					orderChannel.unsubscribe();
+					deliveryChannel.unsubscribe();
+				};
+			} catch (error) {
+				console.error('Error fetching user data:', error);
+			} finally {
+				setLoading(false);
+			}
+		};
+
+		initializeDashboard();
+	}, [supabase, isDemo]);
+
+	// Helper function to get order status badge
+	const getOrderStatusBadge = (order: any) => {
+		if (order.delivery?.[0]?.status || order.delivery?.status) {
+			const deliveryStatus =
+				order.delivery?.[0]?.status || order.delivery?.status;
+			switch (deliveryStatus) {
+				case 'pending':
+					return <Badge variant="secondary">Awaiting Driver</Badge>;
+				case 'accepted':
+					return <Badge variant="outline">Driver Assigned</Badge>;
+				case 'picked_up':
+					return <Badge variant="outline">Picked Up</Badge>;
+				case 'in_transit':
+					return <Badge variant="default">In Transit</Badge>;
+				case 'delivered':
+					return <Badge variant="default">Delivered</Badge>;
+				case 'cancelled':
+					return <Badge variant="destructive">Cancelled</Badge>;
+				default:
+					return <Badge variant="secondary">{order.status}</Badge>;
+			}
 		}
+		return <Badge variant="secondary">{order.status}</Badge>;
+	};
+
+	if (loading) {
+		return (
+			<div className="container mx-auto px-4 py-8">
+				<div className="animate-pulse space-y-6">
+					<div className="h-8 bg-gray-200 rounded w-1/3"></div>
+					<div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+						{[1, 2, 3].map((i) => (
+							<div key={i} className="h-32 bg-gray-200 rounded"></div>
+						))}
+					</div>
+				</div>
+			</div>
+		);
 	}
 
 	return (
