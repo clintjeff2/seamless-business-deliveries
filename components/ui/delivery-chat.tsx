@@ -21,6 +21,9 @@ import {
 	Circle,
 	CheckCheck,
 	Check,
+	Loader2,
+	Zap,
+	MessageSquare,
 } from 'lucide-react';
 import { format, formatDistanceToNow } from 'date-fns';
 
@@ -88,68 +91,87 @@ export function DeliveryChat({
 	const [isTyping, setIsTyping] = useState(false);
 	const [otherUserTyping, setOtherUserTyping] = useState(false);
 	const [unreadCount, setUnreadCount] = useState(0);
-	const [isOnline, setIsOnline] = useState(true);
 	const [connectionRetries, setConnectionRetries] = useState(0);
+	const [isSending, setIsSending] = useState(false);
+	const [isConnected, setIsConnected] = useState(true);
 
 	const messagesEndRef = useRef<HTMLDivElement>(null);
 	const typingTimeoutRef = useRef<NodeJS.Timeout>();
-	const presenceTimeoutRef = useRef<NodeJS.Timeout>();
+	const chatContainerRef = useRef<HTMLDivElement>(null);
 	const supabase = createClient();
 
 	// Scroll to bottom of messages
 	const scrollToBottom = () => {
-		messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+		if (messagesEndRef.current) {
+			messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+		}
 	};
 
-	// Update user presence
+	// Update user presence with better error handling
 	const updatePresence = async () => {
 		if (!chat?.id) return;
 
 		try {
-			await supabase.rpc('update_user_presence', {
+			const { error } = await supabase.rpc('update_user_presence', {
 				p_chat_id: chat.id,
 				p_user_id: currentUserId,
 				p_is_online: true,
 			});
+
+			if (error) throw error;
+			setIsConnected(true);
 		} catch (error) {
 			console.error('Error updating presence:', error);
+			setIsConnected(false);
 		}
 	};
 
-	// Set up presence heartbeat
+	// Set up presence heartbeat with improved error handling
 	useEffect(() => {
 		if (!chat?.id) return;
 
-		// Update presence immediately
 		updatePresence();
 
-		// Set up interval to update presence every 30 seconds
 		const interval = setInterval(updatePresence, 30000);
 
-		// Update presence when page becomes visible
 		const handleVisibilityChange = () => {
 			if (!document.hidden) {
 				updatePresence();
 			}
 		};
 
-		document.addEventListener('visibilitychange', handleVisibilityChange);
+		const handleFocus = () => updatePresence();
+		const handleBlur = () => {
+			if (chat?.id) {
+				supabase.rpc('update_user_presence', {
+					p_chat_id: chat.id,
+					p_user_id: currentUserId,
+					p_is_online: false,
+				});
+			}
+		};
 
-		// Clean up on unmount
+		document.addEventListener('visibilitychange', handleVisibilityChange);
+		window.addEventListener('focus', handleFocus);
+		window.addEventListener('blur', handleBlur);
+
 		return () => {
 			clearInterval(interval);
 			document.removeEventListener('visibilitychange', handleVisibilityChange);
+			window.removeEventListener('focus', handleFocus);
+			window.removeEventListener('blur', handleBlur);
 
-			// Mark as offline when component unmounts
-			supabase.rpc('update_user_presence', {
-				p_chat_id: chat.id,
-				p_user_id: currentUserId,
-				p_is_online: false,
-			});
+			if (chat?.id) {
+				supabase.rpc('update_user_presence', {
+					p_chat_id: chat.id,
+					p_user_id: currentUserId,
+					p_is_online: false,
+				});
+			}
 		};
 	}, [chat?.id, currentUserId, supabase]);
 
-	// Load chat data
+	// Load chat data with improved error handling
 	useEffect(() => {
 		const loadChatData = async () => {
 			try {
@@ -159,7 +181,16 @@ export function DeliveryChat({
 				// First, check if delivery exists and its status
 				const { data: deliveryData, error: deliveryError } = await supabase
 					.from('deliveries')
-					.select('status, transport_service_id, orders(user_id)')
+					.select(
+						`
+						status, 
+						transport_service_id, 
+						orders(user_id),
+						transport_service:transport_services(
+							driver:profiles!transport_services_driver_id_fkey(id, full_name, avatar_url, phone)
+						)
+					`
+					)
 					.eq('id', deliveryId)
 					.single();
 
@@ -180,7 +211,7 @@ export function DeliveryChat({
 					return;
 				}
 
-				// Get chat for this delivery
+				// Get or create chat for this delivery
 				let { data: chatData, error: chatError } = await supabase
 					.from('delivery_chats')
 					.select('*')
@@ -188,21 +219,16 @@ export function DeliveryChat({
 					.single();
 
 				// If no chat exists but delivery is accepted or beyond, create one
-				if (
-					chatError &&
-					chatError.code === 'PGRST116' &&
-					chatEnabledStatuses.includes(deliveryData.status)
-				) {
+				if (chatError && chatError.code === 'PGRST116') {
 					console.log('Creating new chat for delivery:', deliveryId);
 
-					// Create new chat
 					const { data: newChatData, error: createChatError } = await supabase
 						.from('delivery_chats')
 						.insert([
 							{
 								delivery_id: deliveryId,
 								customer_id: deliveryData.orders.user_id,
-								driver_id: deliveryData.transport_service_id,
+								driver_id: deliveryData.transport_service?.driver?.id,
 								status: 'active',
 							},
 						])
@@ -242,15 +268,15 @@ export function DeliveryChat({
 
 				setMessages(messagesData || []);
 
-				// Get participants with profile info and online status
+				// Get participants with profile info
 				const { data: participantsData, error: participantsError } =
 					await supabase
 						.from('delivery_chat_participants')
 						.select(
 							`
-						*,
-						profile:profiles(full_name, avatar_url, phone)
-					`
+							*,
+							profile:profiles(full_name, avatar_url, phone)
+						`
 						)
 						.eq('chat_id', chatData.id);
 
@@ -269,15 +295,18 @@ export function DeliveryChat({
 				setUnreadCount(unreadMessages.length);
 
 				// Mark messages as read if chat is not minimized
-				if (!isMinimized) {
+				if (!isMinimized && unreadMessages.length > 0) {
 					await supabase.rpc('mark_messages_read', {
 						p_chat_id: chatData.id,
 						p_user_id: currentUserId,
 					});
 					setUnreadCount(0);
 				}
+
+				setIsConnected(true);
 			} catch (error) {
 				console.error('Error in loadChatData:', error);
+				setIsConnected(false);
 			} finally {
 				setIsLoading(false);
 			}
@@ -288,13 +317,20 @@ export function DeliveryChat({
 		}
 	}, [deliveryId, currentUserId, isMinimized, connectionRetries, supabase]);
 
-	// Set up real-time subscriptions
+	// Set up real-time subscriptions with improved error handling and automatic reconnection
 	useEffect(() => {
 		if (!chat?.id) return;
 
-		// Subscribe to new messages
+		console.log('Setting up real-time subscriptions for chat:', chat.id);
+
+		// Subscribe to new messages and updates with retry logic
 		const messagesChannel = supabase
-			.channel(`chat-messages-${chat.id}`)
+			.channel(`chat-messages-${chat.id}-${Date.now()}`, {
+				config: {
+					broadcast: { self: false },
+					presence: { key: currentUserId },
+				},
+			})
 			.on(
 				'postgres_changes',
 				{
@@ -304,8 +340,16 @@ export function DeliveryChat({
 					filter: `chat_id=eq.${chat.id}`,
 				},
 				(payload) => {
+					console.log('New message received:', payload);
 					const newMessage = payload.new as ChatMessage;
-					setMessages((prev) => [...prev, newMessage]);
+
+					setMessages((prev) => {
+						// Prevent duplicate messages
+						if (prev.find((msg) => msg.id === newMessage.id)) {
+							return prev;
+						}
+						return [...prev, newMessage];
+					});
 
 					// Update unread count if message is from other user and chat is minimized
 					if (newMessage.sender_id !== currentUserId && isMinimized) {
@@ -322,14 +366,10 @@ export function DeliveryChat({
 						}, 500);
 					}
 
-					scrollToBottom();
+					// Scroll to bottom with a small delay for better UX
+					setTimeout(scrollToBottom, 100);
 				}
 			)
-			.subscribe();
-
-		// Subscribe to message updates (for read status)
-		const messageUpdatesChannel = supabase
-			.channel(`chat-message-updates-${chat.id}`)
 			.on(
 				'postgres_changes',
 				{
@@ -347,11 +387,6 @@ export function DeliveryChat({
 					);
 				}
 			)
-			.subscribe();
-
-		// Subscribe to typing indicators and presence
-		const typingChannel = supabase
-			.channel(`chat-typing-${chat.id}`)
 			.on(
 				'postgres_changes',
 				{
@@ -362,6 +397,7 @@ export function DeliveryChat({
 				},
 				(payload) => {
 					const updatedParticipant = payload.new as any;
+
 					if (updatedParticipant.user_id !== currentUserId) {
 						setOtherUserTyping(updatedParticipant.is_typing);
 
@@ -376,21 +412,34 @@ export function DeliveryChat({
 					}
 				}
 			)
-			.subscribe();
+			.subscribe((status) => {
+				console.log('Subscription status:', status);
+				if (status === 'SUBSCRIBED') {
+					setIsConnected(true);
+				} else if (status === 'CHANNEL_ERROR') {
+					setIsConnected(false);
+					// Retry connection after 3 seconds
+					setTimeout(() => {
+						if (chat?.id) {
+							loadChatData();
+						}
+					}, 3000);
+				}
+			});
 
 		return () => {
+			console.log('Unsubscribing from chat:', chat.id);
 			messagesChannel.unsubscribe();
-			messageUpdatesChannel.unsubscribe();
-			typingChannel.unsubscribe();
 		};
 	}, [chat?.id, currentUserId, isMinimized, supabase]);
 
 	// Auto-scroll when new messages arrive
 	useEffect(() => {
-		scrollToBottom();
+		const timer = setTimeout(scrollToBottom, 100);
+		return () => clearTimeout(timer);
 	}, [messages]);
 
-	// Handle typing indicators
+	// Handle typing indicators with debouncing
 	const handleTyping = () => {
 		if (!chat?.id) return;
 
@@ -416,20 +465,24 @@ export function DeliveryChat({
 				p_user_id: currentUserId,
 				p_is_typing: false,
 			});
-		}, 2000);
+		}, 1500);
 	};
 
-	// Send message
+	// Send message with better error handling
 	const handleSendMessage = async () => {
-		if (!newMessage.trim() || !chat?.id) return;
+		if (!newMessage.trim() || !chat?.id || isSending) return;
+
+		const messageContent = newMessage.trim();
+		setNewMessage('');
+		setIsSending(true);
 
 		try {
 			const messageData = {
 				chat_id: chat.id,
 				sender_id: currentUserId,
 				sender_type: userType,
-				message_type: 'text',
-				content: newMessage.trim(),
+				message_type: 'text' as const,
+				content: messageContent,
 			};
 
 			const { error } = await supabase
@@ -438,10 +491,10 @@ export function DeliveryChat({
 
 			if (error) {
 				console.error('Error sending message:', error);
+				// Restore message on error
+				setNewMessage(messageContent);
 				return;
 			}
-
-			setNewMessage('');
 
 			// Stop typing indicator
 			if (isTyping) {
@@ -454,6 +507,9 @@ export function DeliveryChat({
 			}
 		} catch (error) {
 			console.error('Error in handleSendMessage:', error);
+			setNewMessage(messageContent);
+		} finally {
+			setIsSending(false);
 		}
 	};
 
@@ -462,21 +518,24 @@ export function DeliveryChat({
 		if (e.key === 'Enter' && !e.shiftKey) {
 			e.preventDefault();
 			handleSendMessage();
-		} else {
+		} else if (e.key !== 'Enter') {
 			handleTyping();
 		}
 	};
 
 	// Mark messages as read when chat is opened
 	useEffect(() => {
-		if (chat?.id && !isMinimized) {
-			supabase.rpc('mark_messages_read', {
-				p_chat_id: chat.id,
-				p_user_id: currentUserId,
-			});
-			setUnreadCount(0);
+		if (chat?.id && !isMinimized && unreadCount > 0) {
+			const timer = setTimeout(() => {
+				supabase.rpc('mark_messages_read', {
+					p_chat_id: chat.id,
+					p_user_id: currentUserId,
+				});
+				setUnreadCount(0);
+			}, 500);
+			return () => clearTimeout(timer);
 		}
-	}, [chat?.id, isMinimized, currentUserId, supabase]);
+	}, [chat?.id, isMinimized, unreadCount, currentUserId, supabase]);
 
 	// Get other participant info
 	const otherParticipant = participants.find(
@@ -521,12 +580,23 @@ export function DeliveryChat({
 
 	if (isLoading) {
 		return (
-			<Card className={`w-full ${className}`}>
-				<CardContent className="p-4">
-					<div className="animate-pulse space-y-4">
-						<div className="h-4 bg-gray-200 rounded w-3/4"></div>
-						<div className="h-20 bg-gray-200 rounded"></div>
+			<Card className={`${className} animate-pulse`}>
+				<CardHeader className="pb-3">
+					<div className="flex items-center justify-between">
+						<div className="flex items-center space-x-3">
+							<div className="h-10 w-10 bg-gray-200 rounded-full"></div>
+							<div>
+								<div className="h-4 bg-gray-200 rounded w-24 mb-1"></div>
+								<div className="h-3 bg-gray-200 rounded w-16"></div>
+							</div>
+						</div>
+					</div>
+				</CardHeader>
+				<CardContent>
+					<div className="space-y-3">
 						<div className="h-8 bg-gray-200 rounded"></div>
+						<div className="h-8 bg-gray-200 rounded w-3/4"></div>
+						<div className="h-8 bg-gray-200 rounded w-1/2"></div>
 					</div>
 				</CardContent>
 			</Card>
@@ -535,103 +605,108 @@ export function DeliveryChat({
 
 	if (!chat) {
 		return (
-			<Card className={`w-full ${className}`}>
-				<CardContent className="p-4 text-center">
-					<MessageCircle className="h-12 w-12 mx-auto text-gray-400 mb-2" />
-					<p className="text-gray-600 text-sm">
-						Chat will be available once delivery is accepted
+			<Card className={`${className} border-orange-200 bg-orange-50`}>
+				<CardContent className="p-6 text-center">
+					<MessageSquare className="h-12 w-12 text-orange-400 mx-auto mb-3" />
+					<h3 className="font-semibold text-orange-800 mb-2">
+						Chat Not Available
+					</h3>
+					<p className="text-sm text-orange-600">
+						Chat will be available once the delivery is accepted by a driver.
 					</p>
 				</CardContent>
 			</Card>
 		);
 	}
 
-	const onlineStatus = getOnlineStatus();
-
 	return (
 		<Card
-			className={`w-full transition-all duration-300 shadow-lg ${
-				isMinimized ? 'h-16' : 'h-96 md:h-[500px]'
-			} ${className}`}
+			className={`${className} shadow-lg border-0 bg-gradient-to-br from-white to-gray-50/50 backdrop-blur-sm`}
 		>
-			{/* Chat Header */}
-			<CardHeader className="p-3 md:p-4 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
+			{/* Enhanced Header */}
+			<CardHeader className="pb-3 bg-gradient-to-r from-blue-600 to-purple-600 text-white rounded-t-lg">
 				<div className="flex items-center justify-between">
 					<div className="flex items-center space-x-3">
+						{/* Enhanced Avatar with online status */}
 						<div className="relative">
-							<Avatar className="h-8 w-8 md:h-10 md:w-10">
+							<Avatar className="h-10 w-10 border-2 border-white/20">
 								<AvatarImage src={otherParticipant?.profile?.avatar_url} />
-								<AvatarFallback className="bg-blue-500 text-white">
+								<AvatarFallback className="bg-white/20 text-white font-semibold">
 									{otherParticipant?.profile?.full_name?.charAt(0) || 'U'}
 								</AvatarFallback>
 							</Avatar>
-							{/* Online status indicator */}
 							<div
-								className={`absolute -bottom-1 -right-1 w-3 h-3 rounded-full border-2 border-white ${
-									onlineStatus.status === 'online'
-										? 'bg-green-500'
-										: onlineStatus.status === 'away'
-										? 'bg-yellow-500'
+								className={`absolute -bottom-1 -right-1 w-4 h-4 rounded-full border-2 border-white ${
+									otherParticipant?.is_online
+										? 'bg-green-400 animate-pulse'
 										: 'bg-gray-400'
 								}`}
 							/>
 						</div>
-						<div className="min-w-0 flex-1">
-							<CardTitle className="text-sm md:text-base truncate">
-								{otherParticipant?.profile?.full_name || 'User'}
-							</CardTitle>
+
+						{/* Enhanced User Info */}
+						<div className="flex-1 min-w-0">
 							<div className="flex items-center space-x-2">
-								<Badge variant="secondary" className="text-xs">
+								<h3 className="font-semibold text-white truncate">
+									{otherParticipant?.profile?.full_name || 'User'}
+								</h3>
+								<Badge
+									variant="secondary"
+									className="text-xs bg-white/20 text-white border-white/30"
+								>
 									{otherParticipant?.user_type === 'driver'
 										? 'Driver'
 										: 'Customer'}
 								</Badge>
-								{otherUserTyping ? (
-									<span className="text-xs text-blue-500 animate-pulse">
-										typing...
-									</span>
-								) : (
-									<span
-										className={`text-xs ${
-											onlineStatus.status === 'online'
-												? 'text-green-600'
-												: onlineStatus.status === 'away'
-												? 'text-yellow-600'
-												: 'text-gray-500'
-										}`}
-									>
-										{onlineStatus.text}
-									</span>
+							</div>
+							<div className="flex items-center space-x-2 text-white/80 text-xs">
+								<Circle
+									className={`h-2 w-2 ${
+										otherParticipant?.is_online
+											? 'text-green-300'
+											: 'text-gray-300'
+									}`}
+									fill="currentColor"
+								/>
+								<span>
+									{otherParticipant?.is_online
+										? 'Online'
+										: `Last seen ${formatLastSeen(
+												otherParticipant?.last_seen_at || ''
+										  )}`}
+								</span>
+								{!isConnected && (
+									<Badge variant="destructive" className="text-xs">
+										Reconnecting...
+									</Badge>
 								)}
 							</div>
 						</div>
 					</div>
 
-					<div className="flex items-center space-x-1">
-						{unreadCount > 0 && (
-							<Badge variant="destructive" className="text-xs min-w-[20px] h-5">
-								{unreadCount > 99 ? '99+' : unreadCount}
-							</Badge>
-						)}
-						{/* Call button for mobile */}
+					{/* Enhanced Action Buttons */}
+					<div className="flex items-center space-x-2">
+						{/* Call Button */}
 						{otherParticipant?.profile?.phone && (
 							<Button
-								variant="ghost"
 								size="sm"
+								variant="ghost"
+								className="h-8 w-8 p-0 text-white hover:bg-white/20"
 								onClick={() =>
 									window.open(`tel:${otherParticipant.profile?.phone}`)
 								}
-								className="h-8 w-8 p-0 md:hidden"
 							>
 								<Phone className="h-4 w-4" />
 							</Button>
 						)}
+
+						{/* Minimize/Maximize Button */}
 						{onToggleMinimize && (
 							<Button
-								variant="ghost"
 								size="sm"
+								variant="ghost"
+								className="h-8 w-8 p-0 text-white hover:bg-white/20"
 								onClick={onToggleMinimize}
-								className="h-8 w-8 p-0"
 							>
 								{isMinimized ? (
 									<Maximize2 className="h-4 w-4" />
@@ -640,12 +715,14 @@ export function DeliveryChat({
 								)}
 							</Button>
 						)}
+
+						{/* Close Button */}
 						{onClose && (
 							<Button
-								variant="ghost"
 								size="sm"
+								variant="ghost"
+								className="h-8 w-8 p-0 text-white hover:bg-red-500/20"
 								onClick={onClose}
-								className="h-8 w-8 p-0"
 							>
 								<X className="h-4 w-4" />
 							</Button>
@@ -654,82 +731,175 @@ export function DeliveryChat({
 				</div>
 			</CardHeader>
 
-			{/* Chat Messages */}
+			{/* Enhanced Messages Container */}
 			{!isMinimized && (
-				<>
-					<CardContent className="p-0 flex-1 overflow-hidden">
-						<div className="h-64 md:h-80 overflow-y-auto p-3 md:p-4 space-y-3 md:space-y-4 bg-gray-50">
-							{messages.map((message) => (
+				<CardContent className="p-0">
+					{/* Messages Area with improved styling */}
+					<div
+						ref={chatContainerRef}
+						className="h-96 overflow-y-auto p-4 space-y-4 bg-gradient-to-b from-gray-50/30 to-white"
+						style={{
+							scrollBehavior: 'smooth',
+							background: 'linear-gradient(to bottom, #f8fafc, #ffffff)',
+						}}
+					>
+						{messages.length === 0 ? (
+							<div className="flex flex-col items-center justify-center h-full text-gray-500">
+								<MessageCircle className="h-12 w-12 mb-3 text-gray-300" />
+								<p className="text-sm font-medium">No messages yet</p>
+								<p className="text-xs">Start the conversation!</p>
+							</div>
+						) : (
+							messages.map((message) => (
 								<div
 									key={message.id}
 									className={`flex ${
 										message.sender_id === currentUserId
 											? 'justify-end'
 											: 'justify-start'
-									}`}
+									} animate-in slide-in-from-bottom duration-300`}
 								>
-									<div
-										className={`max-w-[85%] md:max-w-[80%] rounded-lg p-2 md:p-3 ${
-											message.sender_type === 'system'
-												? 'bg-gray-100 text-gray-600 text-center text-xs md:text-sm mx-auto'
-												: message.sender_id === currentUserId
-												? 'bg-blue-500 text-white rounded-br-sm'
-												: 'bg-white text-gray-900 rounded-bl-sm shadow-sm'
-										}`}
-									>
-										<p className="text-xs md:text-sm break-words">
-											{message.content}
-										</p>
-										<div className="flex items-center justify-between mt-1">
-											<p className="text-xs opacity-70">
-												{format(new Date(message.created_at), 'HH:mm')}
-											</p>
-											{message.sender_id === currentUserId &&
-												message.sender_type !== 'system' && (
-													<div className="ml-2">
-														{message.is_read ? (
-															<CheckCheck className="h-3 w-3 text-blue-200" />
-														) : (
-															<Check className="h-3 w-3 text-blue-200" />
-														)}
-													</div>
-												)}
+									{message.sender_type === 'system' ? (
+										<div className="mx-auto">
+											<Badge
+												variant="secondary"
+												className="text-xs bg-blue-100 text-blue-800 border-blue-200"
+											>
+												{message.content}
+											</Badge>
+										</div>
+									) : (
+										<div
+											className={`max-w-xs lg:max-w-md ${
+												message.sender_id === currentUserId
+													? 'order-1'
+													: 'order-2'
+											}`}
+										>
+											{/* Enhanced Message Bubble */}
+											<div
+												className={`px-4 py-3 rounded-2xl shadow-sm ${
+													message.sender_id === currentUserId
+														? 'bg-gradient-to-br from-blue-500 to-purple-600 text-white rounded-br-md'
+														: 'bg-white border border-gray-200 text-gray-800 rounded-bl-md'
+												} transform transition-all duration-200 hover:scale-[1.02]`}
+											>
+												<p className="text-sm leading-relaxed">
+													{message.content}
+												</p>
+
+												{/* Enhanced Message Footer */}
+												<div
+													className={`flex items-center justify-between mt-2 text-xs ${
+														message.sender_id === currentUserId
+															? 'text-white/70'
+															: 'text-gray-500'
+													}`}
+												>
+													<span>
+														{format(new Date(message.created_at), 'HH:mm')}
+													</span>
+													{message.sender_id === currentUserId && (
+														<div className="flex items-center space-x-1">
+															{message.is_read ? (
+																<CheckCheck className="h-3 w-3 text-blue-200" />
+															) : (
+																<Check className="h-3 w-3 text-white/50" />
+															)}
+														</div>
+													)}
+												</div>
+											</div>
+										</div>
+									)}
+								</div>
+							))
+						)}
+
+						{/* Enhanced Typing Indicator */}
+						{otherUserTyping && (
+							<div className="flex justify-start animate-in slide-in-from-bottom duration-300">
+								<div className="max-w-xs">
+									<div className="bg-gray-100 px-4 py-3 rounded-2xl rounded-bl-md">
+										<div className="flex items-center space-x-1">
+											<div className="flex space-x-1">
+												<div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+												<div
+													className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+													style={{ animationDelay: '0.1s' }}
+												></div>
+												<div
+													className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+													style={{ animationDelay: '0.2s' }}
+												></div>
+											</div>
+											<span className="text-xs text-gray-500 ml-2">
+												typing...
+											</span>
 										</div>
 									</div>
 								</div>
-							))}
-							<div ref={messagesEndRef} />
-						</div>
-					</CardContent>
+							</div>
+						)}
+						<div ref={messagesEndRef} />
+					</div>
 
-					{/* Message Input */}
-					<div className="p-3 md:p-4 border-t bg-white">
-						<div className="flex items-center space-x-2">
-							<Input
-								value={newMessage}
-								onChange={(e) => setNewMessage(e.target.value)}
-								onKeyPress={handleKeyPress}
-								placeholder="Type a message..."
-								className="flex-1 text-sm"
-								disabled={chat.status !== 'active'}
-								maxLength={1000}
-							/>
-							<Button
-								onClick={handleSendMessage}
-								disabled={!newMessage.trim() || chat.status !== 'active'}
-								size="sm"
-								className="h-9 w-9 md:h-10 md:w-10 p-0"
-							>
-								<Send className="h-4 w-4" />
-							</Button>
+					{/* Enhanced Input Area */}
+					<div className="p-4 border-t bg-white/80 backdrop-blur-sm">
+						<div className="flex items-center space-x-3">
+							<div className="flex-1">
+								<div className="relative">
+									<Input
+										value={newMessage}
+										onChange={(e) => {
+											setNewMessage(e.target.value);
+											handleTyping();
+										}}
+										onKeyPress={handleKeyPress}
+										placeholder="Type your message..."
+										className="pr-12 rounded-full border-gray-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+										disabled={isSending}
+									/>
+									{/* Send Button */}
+									<Button
+										size="sm"
+										onClick={handleSendMessage}
+										disabled={!newMessage.trim() || isSending}
+										className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8 w-8 rounded-full bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200"
+									>
+										{isSending ? (
+											<Loader2 className="h-4 w-4 animate-spin" />
+										) : (
+											<Send className="h-4 w-4" />
+										)}
+									</Button>
+								</div>
+							</div>
 						</div>
-						{chat.status !== 'active' && (
-							<p className="text-xs text-gray-500 mt-2 text-center">
-								Chat has ended
-							</p>
+
+						{/* Connection Status */}
+						{!isConnected && (
+							<div className="mt-2 flex items-center justify-center">
+								<Badge variant="destructive" className="text-xs animate-pulse">
+									<Zap className="h-3 w-3 mr-1" />
+									Reconnecting to chat...
+								</Badge>
+							</div>
 						)}
 					</div>
-				</>
+				</CardContent>
+			)}
+
+			{/* Minimized View with unread count */}
+			{isMinimized && unreadCount > 0 && (
+				<div className="absolute -top-2 -right-2">
+					<Badge
+						variant="destructive"
+						className="h-6 w-6 rounded-full p-0 flex items-center justify-center text-xs animate-pulse"
+					>
+						{unreadCount > 99 ? '99+' : unreadCount}
+					</Badge>
+				</div>
 			)}
 		</Card>
 	);
