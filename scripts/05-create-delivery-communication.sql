@@ -87,8 +87,8 @@ DECLARE
 BEGIN
     -- Only create chat when status changes to 'accepted' or 'picked_up'
     IF NEW.status IN ('accepted', 'picked_up') AND (OLD.status IS NULL OR OLD.status NOT IN ('accepted', 'picked_up', 'in_transit', 'delivered')) THEN
-        -- Get customer ID from the order
-        SELECT o.customer_id INTO customer_user_id
+        -- Get customer ID from the order (FIXED: changed from customer_id to user_id)
+        SELECT o.user_id INTO customer_user_id
         FROM orders o
         WHERE o.id = NEW.order_id;
         
