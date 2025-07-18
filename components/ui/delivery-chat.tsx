@@ -323,9 +323,12 @@ export function DeliveryChat({
 
 		console.log('Setting up real-time subscriptions for chat:', chat.id);
 
+		// Use a consistent channel name without timestamp to avoid multiple subscriptions
+		const channelName = `delivery-chat-${chat.id}`;
+
 		// Subscribe to new messages and updates with retry logic
 		const messagesChannel = supabase
-			.channel(`chat-messages-${chat.id}-${Date.now()}`, {
+			.channel(channelName, {
 				config: {
 					broadcast: { self: false },
 					presence: { key: currentUserId },
@@ -340,14 +343,16 @@ export function DeliveryChat({
 					filter: `chat_id=eq.${chat.id}`,
 				},
 				(payload) => {
-					console.log('New message received:', payload);
+					console.log('New message received in delivery-chat:', payload);
 					const newMessage = payload.new as ChatMessage;
 
 					setMessages((prev) => {
-						// Prevent duplicate messages
+						// Prevent duplicate messages by checking if message already exists
 						if (prev.find((msg) => msg.id === newMessage.id)) {
+							console.log('Message already exists, skipping duplicate');
 							return prev;
 						}
+						console.log('Adding new message to chat');
 						return [...prev, newMessage];
 					});
 
@@ -356,7 +361,7 @@ export function DeliveryChat({
 						setUnreadCount((prev) => prev + 1);
 					}
 
-					// Auto-mark as read if chat is not minimized
+					// Auto-mark as read if chat is not minimized and message is from other user
 					if (!isMinimized && newMessage.sender_id !== currentUserId) {
 						setTimeout(() => {
 							supabase.rpc('mark_messages_read', {
@@ -379,6 +384,7 @@ export function DeliveryChat({
 					filter: `chat_id=eq.${chat.id}`,
 				},
 				(payload) => {
+					console.log('Message updated in delivery-chat:', payload);
 					const updatedMessage = payload.new as ChatMessage;
 					setMessages((prev) =>
 						prev.map((msg) =>
@@ -396,6 +402,7 @@ export function DeliveryChat({
 					filter: `chat_id=eq.${chat.id}`,
 				},
 				(payload) => {
+					console.log('Participant updated in delivery-chat:', payload);
 					const updatedParticipant = payload.new as any;
 
 					if (updatedParticipant.user_id !== currentUserId) {
@@ -413,22 +420,25 @@ export function DeliveryChat({
 				}
 			)
 			.subscribe((status) => {
-				console.log('Subscription status:', status);
+				console.log('Delivery chat subscription status:', status);
 				if (status === 'SUBSCRIBED') {
 					setIsConnected(true);
+					setConnectionRetries(0);
 				} else if (status === 'CHANNEL_ERROR') {
 					setIsConnected(false);
+					console.error('Channel error in delivery chat');
 					// Retry connection after 3 seconds
-					setTimeout(() => {
-						if (chat?.id) {
+					if (connectionRetries < 3) {
+						setTimeout(() => {
+							setConnectionRetries((prev) => prev + 1);
 							loadChatData();
-						}
-					}, 3000);
+						}, 3000);
+					}
 				}
 			});
 
 		return () => {
-			console.log('Unsubscribing from chat:', chat.id);
+			console.log('Unsubscribing from delivery chat:', chat.id);
 			messagesChannel.unsubscribe();
 		};
 	}, [chat?.id, currentUserId, isMinimized, supabase]);
