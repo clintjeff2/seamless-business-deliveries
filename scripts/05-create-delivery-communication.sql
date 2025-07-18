@@ -212,3 +212,52 @@ BEGIN
     WHERE chat_id = p_chat_id AND user_id = p_user_id;
 END;
 $$ LANGUAGE plpgsql;
+
+-- Add a function to broadcast message events to ensure real-time sync
+CREATE OR REPLACE FUNCTION broadcast_message_event()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Perform the notification for real-time updates
+    PERFORM pg_notify('message_event', json_build_object(
+        'event', TG_OP,
+        'table', TG_TABLE_NAME,
+        'chat_id', COALESCE(NEW.chat_id, OLD.chat_id),
+        'message_id', COALESCE(NEW.id, OLD.id),
+        'sender_id', COALESCE(NEW.sender_id, OLD.sender_id)
+    )::text);
+    
+    RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create trigger to broadcast message events
+DROP TRIGGER IF EXISTS trigger_broadcast_message_event ON delivery_messages;
+CREATE TRIGGER trigger_broadcast_message_event
+    AFTER INSERT OR UPDATE OR DELETE ON delivery_messages
+    FOR EACH ROW
+    EXECUTE FUNCTION broadcast_message_event();
+
+-- Add a function to broadcast participant events
+CREATE OR REPLACE FUNCTION broadcast_participant_event()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Perform the notification for real-time updates
+    PERFORM pg_notify('participant_event', json_build_object(
+        'event', TG_OP,
+        'table', TG_TABLE_NAME,
+        'chat_id', COALESCE(NEW.chat_id, OLD.chat_id),
+        'user_id', COALESCE(NEW.user_id, OLD.user_id),
+        'is_online', COALESCE(NEW.is_online, OLD.is_online),
+        'is_typing', COALESCE(NEW.is_typing, OLD.is_typing)
+    )::text);
+    
+    RETURN COALESCE(NEW, OLD);
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create trigger to broadcast participant events
+DROP TRIGGER IF EXISTS trigger_broadcast_participant_event ON delivery_chat_participants;
+CREATE TRIGGER trigger_broadcast_participant_event
+    AFTER INSERT OR UPDATE OR DELETE ON delivery_chat_participants
+    FOR EACH ROW
+    EXECUTE FUNCTION broadcast_participant_event();
