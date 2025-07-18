@@ -412,7 +412,7 @@ export default function DeliveryTrackingPage() {
 
 				{/* Driver Status Overlay - repositioned for mobile */}
 				<div className="absolute bottom-4 left-4 sm:bottom-4 sm:right-4 space-y-2">
-					<div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm p-1.5 sm:p-2 rounded-md shadow-lg">
+					{/* <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm p-1.5 sm:p-2 rounded-md shadow-lg">
 						<div className="flex items-center space-x-1.5">
 							<div
 								className={`w-1.5 h-1.5 rounded-full ${
@@ -428,20 +428,20 @@ export default function DeliveryTrackingPage() {
 								{driverStatus}
 							</span>
 						</div>
-					</div>
+					</div> */}
 
 					{/* Mobile-friendly delivery status indicator */}
-					<div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm p-1.5 sm:p-2 rounded-md shadow-lg">
+					{/* <div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm p-1.5 sm:p-2 rounded-md shadow-lg">
 						<div className="flex items-center space-x-1.5">
 							<Truck className="h-3 w-3 text-blue-500" />
 							<span className="text-xs font-medium dark:text-white capitalize">
 								{delivery.status.replace('_', ' ')}
 							</span>
 						</div>
-					</div>
+					</div> */}
 
 					{/* Compact Route Information Overlay */}
-					{routeInfo && (
+					{/* {routeInfo && (
 						<div className="bg-white/95 dark:bg-gray-800/95 backdrop-blur-sm p-2 rounded-md shadow-lg">
 							<div className="grid grid-cols-2 gap-2 text-xs">
 								<div className="text-center">
@@ -482,7 +482,7 @@ export default function DeliveryTrackingPage() {
 								)}
 							</div>
 						</div>
-					)}
+					)} */}
 				</div>
 
 				{/* Route Calculation Indicator */}
