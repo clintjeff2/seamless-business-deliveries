@@ -189,12 +189,58 @@ export default function ChatsPage() {
 					schema: 'public',
 					table: 'delivery_messages',
 				},
-				() => {
-					// Refresh chats when new messages arrive
+				(payload) => {
+					console.log('Message update received in chats page:', payload);
+					// Refresh chats when new messages arrive or are updated
 					fetchChats();
 				}
 			)
-			.subscribe();
+			.on(
+				'postgres_changes',
+				{
+					event: 'UPDATE',
+					schema: 'public',
+					table: 'delivery_chat_participants',
+				},
+				(payload) => {
+					console.log('Participant update received in chats page:', payload);
+					// Update participant presence status
+					const updatedParticipant = payload.new as any;
+					setChats((prevChats) =>
+						prevChats.map((chat) => {
+							if (
+								chat.other_participant?.user_id === updatedParticipant.user_id
+							) {
+								return {
+									...chat,
+									other_participant: {
+										...chat.other_participant,
+										is_online: updatedParticipant.is_online,
+										last_seen_at: updatedParticipant.last_seen_at,
+									},
+								};
+							}
+							return chat;
+						})
+					);
+				}
+			)
+			.on(
+				'postgres_changes',
+				{
+					event: '*',
+					schema: 'public',
+					table: 'delivery_chats',
+				},
+				(payload) => {
+					console.log('Chat update received in chats page:', payload);
+					// Refresh chats when chat status changes
+					fetchChats();
+				}
+			)
+			.subscribe((status) => {
+				console.log('Chats page subscription status:', status);
+			});
 
 		return () => {
 			chatsChannel.unsubscribe();
