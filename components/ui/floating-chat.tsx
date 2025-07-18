@@ -161,6 +161,7 @@ export function FloatingChat({
 				},
 				(payload: { new: DeliveryMessage }) => {
 					const newMessage = payload.new;
+					console.log('New message received in floating chat:', newMessage);
 					if (newMessage.sender_id !== currentUserId && !showChat) {
 						setUnreadCount((prev) => prev + 1);
 						// Show notification sound or vibration
@@ -193,7 +194,9 @@ export function FloatingChat({
 					}
 				}
 			)
-			.subscribe();
+			.subscribe((status) => {
+				console.log('Floating chat subscription status:', status);
+			});
 
 		// Set up presence subscription
 		const presenceChannel = supabase
@@ -218,7 +221,9 @@ export function FloatingChat({
 					}
 				}
 			)
-			.subscribe();
+			.subscribe((status) => {
+				console.log('Floating chat presence subscription status:', status);
+			});
 
 		return () => {
 			messagesChannel.unsubscribe();
